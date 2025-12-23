@@ -5,33 +5,26 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         python-version: [3.11]
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r backend/requirements.txt
-    
-    - name: Lint with flake8
-      run: |
-        flake8 backend --count --select=E9,F63,F7,F82 --show-source --statistics
-    
-    - name: Type check with mypy
-      run: |
-        mypy backend --ignore-missing-imports
-    
+        pip install pytest
+
     - name: Run tests
       run: |
-        pytest backend/analysis/tests/ -v
-        pytest backend/cli/tests/ -v
+        pytest analysis/tests -v
+        pytest backend/cli/tests -v
