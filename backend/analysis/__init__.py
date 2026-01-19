@@ -7,14 +7,14 @@ This module provides the core analysis components for smart contract security sc
 - ScanResult: Output model containing findings and scores
 
 Usage:
-    from backend.analysis import AnalysisOrchestrator, ScanRequest, ScanResult
+    from analysis import AnalysisOrchestrator, ScanRequest, ScanResult
     
     orchestrator = AnalysisOrchestrator(rules=[...])
     result = orchestrator.analyze(ScanRequest(source_code=contract_code))
 """
 
-from backend.analysis.orchestrator import AnalysisOrchestrator
-from backend.analysis.models import ScanRequest, ScanResult, Finding
+from analysis.orchestrator import AnalysisOrchestrator
+from analysis.models import ScanRequest, ScanResult, Finding
 
 __all__ = [
     "AnalysisOrchestrator",

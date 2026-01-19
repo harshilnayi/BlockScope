@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 from click.testing import CliRunner
 
-from backend.analysis import AnalysisOrchestrator, ScanRequest, ScanResult
-from backend.analysis.rules.base import VulnerabilityRule
+from analysis import AnalysisOrchestrator, ScanRequest, ScanResult
+from analysis.rules.base import VulnerabilityRule
 
 
 # ============================================================================
@@ -140,7 +140,7 @@ def test_fastapi_list_scans():
     This is a placeholder for when Jiten implements the /scans endpoint.
     """
     # For now, just verify imports work
-    from backend.analysis import AnalysisOrchestrator
+    from analysis import AnalysisOrchestrator
     
     orchestrator = AnalysisOrchestrator(rules=[])
     assert orchestrator is not None
@@ -157,7 +157,7 @@ def test_fastapi_get_scan_by_id():
     This is a placeholder for when Jiten implements scan persistence.
     """
     # For now, just verify the models exist
-    from backend.analysis import ScanResult
+    from analysis import ScanResult
     
     # Verify ScanResult has timestamp (used as ID)
     from datetime import datetime
@@ -244,7 +244,7 @@ def test_orchestrator_with_multiple_contracts(sample_contract):
 
 def test_models_integration():
     """Test that all models work together correctly."""
-    from backend.analysis.models import Finding
+    from analysis.models import Finding
     
     # Create a finding
     finding = Finding(
@@ -264,7 +264,7 @@ def test_models_integration():
 
 def test_rules_integration():
     """Test that rules can be integrated with orchestrator."""
-    from backend.analysis.rules.base import VulnerabilityRule, Severity, Finding as RuleFinding
+    from analysis.rules.base import VulnerabilityRule, Severity, Finding as RuleFinding
     
     # Create a test rule
     class TestRule(VulnerabilityRule):

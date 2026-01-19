@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     API_DESCRIPTION: str = "Smart Contract Vulnerability Scanner"
     
     # Database
-    DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/blockscope"
+    DATABASE_URL: str = "postgresql://postgres:joker@localhost:5432/blockscope"
     SQLALCHEMY_ECHO: bool = True
     
     # Redis

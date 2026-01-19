@@ -13,9 +13,9 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
-from backend.analysis.orchestrator import AnalysisOrchestrator
-from backend.analysis.models import ScanRequest, ScanResult, Finding as PydanticFinding
-from backend.analysis.rules.base import VulnerabilityRule, Severity, Finding as RuleFinding
+from analysis.orchestrator import AnalysisOrchestrator
+from analysis.models import ScanRequest, ScanResult, Finding as PydanticFinding
+from analysis.rules.base import VulnerabilityRule, Severity, Finding as RuleFinding
 
 
 # ============================================================================
@@ -71,7 +71,7 @@ def vulnerable_contract():
 @pytest.fixture
 def mock_slither_wrapper():
     """Mock SlitherWrapper to avoid actual Slither execution."""
-    with patch('backend.analysis.orchestrator.SlitherWrapper') as mock_wrapper:
+    with patch('analysis.orchestrator.SlitherWrapper') as mock_wrapper:
         # Configure mock
         mock_instance = Mock()
         mock_instance.available = True
@@ -85,7 +85,7 @@ def mock_slither_wrapper():
 @pytest.fixture
 def mock_slither_with_findings():
     """Mock SlitherWrapper that returns findings."""
-    with patch('backend.analysis.orchestrator.SlitherWrapper') as mock_wrapper:
+    with patch('analysis.orchestrator.SlitherWrapper') as mock_wrapper:
         # Create mock Slither object with findings
         mock_slither_obj = Mock()
         mock_slither_obj.detectors_results = [

@@ -1,24 +1,28 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
-
-from backend.analysis import AnalysisOrchestrator, ScanRequest, ScanResult
-from backend.app.core.database import get_db
-from backend.app.models.scan import Scan
-from backend.app.schemas.scan_schema import ScanRequest, ScanResponse
+from app.core.logger import logger
+from analysis import AnalysisOrchestrator
+from app.schemas.scan_schema import ScanRequest as APIScanRequest, ScanResponse
+from analysis.models import ScanRequest as EngineScanRequest
+from analysis import AnalysisOrchestrator
+from app.core.database import get_db
+from app.models.scan import Scan
+from app.schemas.scan_schema import ScanRequest, ScanResponse
 
 
 router = APIRouter(prefix="/api/v1", tags=["scans"])
 
 # Initialize orchestrator once at module load
 orchestrator = AnalysisOrchestrator(rules=[])
-
+MAX_CONTRACT_SIZE = 200_000  # Max characters for source code
 
 @router.post("/scan", response_model=ScanResponse)
 def scan_contract(
-    request: ScanRequest,
+    request: APIScanRequest,
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Scan request received: {request.contract_name}")
     """
     Scan a Solidity contract for vulnerabilities.
     
@@ -26,6 +30,15 @@ def scan_contract(
     stores result in database, and returns structured findings.
     """
     try:
+         # ---- Edge case checks ----
+        if not request.source_code or not request.source_code.strip():
+            logger.warning("Empty contract submitted")
+            raise HTTPException(status_code=400, detail="Contract code cannot be empty")
+
+        if len(request.source_code) > MAX_CONTRACT_SIZE:
+            logger.warning("Contract too large")
+            raise HTTPException(status_code=413, detail="Contract code too large")
+        
         # 1. Create ScanRequest from API input
         scan_request = ScanRequest(
             source_code=request.source_code,
@@ -34,8 +47,12 @@ def scan_contract(
         )
         
         # 2. Run analysis via orchestrator
-        scan_result = orchestrator.analyze(scan_request)
-        
+        scan_result = orchestrator.analyze(EngineScanRequest(
+            source_code=request.source_code,
+            contract_name=request.contract_name or "UnnamedContract",
+            file_path="api_upload"
+        ))
+        logger.info(f"Analysis completed for: {scan_result.contract_name}")
         # 3. Convert findings to JSON-serializable format
         findings_json = [
             {
@@ -63,6 +80,7 @@ def scan_contract(
         db.add(scan_record)
         db.commit()
         db.refresh(scan_record)
+        logger.info(f"Scan completed successfully: ID={scan_record.id}")
         
         # 6. Return response with database ID
         return ScanResponse(
@@ -75,7 +93,8 @@ def scan_contract(
             timestamp=scan_record.scanned_at,
             scan_id=scan_record.id
         )
-    
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}")
     except Exception as e:
@@ -111,6 +130,7 @@ def list_scans(
             for scan in scans
         ]
     except Exception as e:
+        logger.exception("Failed to list scans")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve scans: {str(e)}")
 
 
@@ -143,4 +163,5 @@ def get_scan(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Failed to retrieve scan")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve scan: {str(e)}")

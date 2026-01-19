@@ -1,6 +1,6 @@
 """Smart contract scanner that runs all vulnerability rules."""
 from typing import List
-from backend.analysis.rules.base import Finding, VulnerabilityRule
+from analysis.rules.base import Finding, VulnerabilityRule
 
 class SmartContractScanner:
     """Scanner that orchestrates vulnerability detection rules."""
