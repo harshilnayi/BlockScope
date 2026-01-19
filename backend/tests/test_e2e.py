@@ -92,7 +92,7 @@ def mock_fastapi_app():
     """
     from fastapi import FastAPI, HTTPException, status
 
-    from backend.analysis import AnalysisOrchestrator, ScanRequest, ScanResult
+    from analysis import AnalysisOrchestrator, ScanRequest, ScanResult
 
     app = FastAPI(title="BlockScope API - Test")
 
@@ -501,7 +501,7 @@ def test_all_components_integrated():
     print("\n🧪 Testing component integration")
 
     # Test imports
-    from backend.analysis import AnalysisOrchestrator, ScanRequest, ScanResult
+    from analysis import AnalysisOrchestrator, ScanRequest, ScanResult
 
     print("   [OK] All imports successful")
 
