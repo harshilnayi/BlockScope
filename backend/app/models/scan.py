@@ -2,8 +2,8 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, Float, ForeignKey
 from sqlalchemy.orm import relationship
-from backend.app.core.database import Base
-
+from app.core.database import Base
+from sqlalchemy import JSON
 
 class Scan(Base):
     """Scan database model."""
@@ -15,9 +15,15 @@ class Scan(Base):
     status = Column(String(50), default="pending")  # pending, completed, failed
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    overall_score = Column(Float, nullable=False)   # ✅ ADD
+    summary = Column(Text, nullable=False) 
+    vulnerabilities_count = Column(Integer, nullable=False)
+    severity_breakdown = Column(JSON, nullable=False)
+    findings = Column(JSON, nullable=False, default=list)   # IMPORTANT
+    scanned_at = Column(DateTime, nullable=False)
     
     # Relationships
-    findings = relationship("Finding", back_populates="scan", cascade="delete-orphan")
+    findings = relationship("Finding", back_populates="scan", cascade="all, delete-orphan")
 
 
 class Finding(Base):

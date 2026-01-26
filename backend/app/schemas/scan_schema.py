@@ -1,7 +1,7 @@
 """Pydantic schemas for API request/response."""
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel
-
+from datetime import datetime
 
 class FindingResponse(BaseModel):
     """Finding response schema."""
@@ -23,13 +23,17 @@ class ScanRequest(BaseModel):
 
 class ScanResponse(BaseModel):
     """Scan response schema."""
-    id: int
+    scan_id: int
     contract_name: str
-    status: str
+    vulnerabilities_count: int
+    severity_breakdown: Dict[str, int]
+    overall_score: float
+    summary: str
     findings: List[FindingResponse] = []
-    created_at: str
-
-
+    timestamp: datetime
+class Config:
+        from_attributes = True
+        
 class HealthResponse(BaseModel):
     """Health check response."""
     status: str

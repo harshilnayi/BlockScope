@@ -22,9 +22,9 @@ if str(backend_path) not in sys.path:
     sys.path.insert(0, str(backend_path))
 
 # Import with absolute paths from backend root
-from backend.analysis.models import ScanRequest, ScanResult, Finding as PydanticFinding
-from backend.analysis.rules.base import VulnerabilityRule, Finding as RuleFinding
-from backend.cli.slither_wrapper import SlitherWrapper
+from analysis.models import ScanRequest, ScanResult, Finding as PydanticFinding
+from analysis.rules.base import VulnerabilityRule, Finding as RuleFinding
+from cli.slither_wrapper import SlitherWrapper
 
 
 class AnalysisOrchestrator:
