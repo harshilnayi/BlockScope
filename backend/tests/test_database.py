@@ -1,19 +1,16 @@
 import pytest
-from app.core.database import SessionLocal, engine
 from sqlalchemy import text
-
+from app.core.database import engine, SessionLocal
 
 def test_connection_pooling():
     conn = engine.connect()
     assert conn is not None
     conn.close()
 
-
 def test_session_management():
     db = SessionLocal()
     assert db is not None
     db.close()
-
 
 def test_transaction_rollback():
     db = SessionLocal()
@@ -25,7 +22,6 @@ def test_transaction_rollback():
     finally:
         db.close()
 
-
 def test_concurrent_access():
     s1 = SessionLocal()
     s2 = SessionLocal()
@@ -33,13 +29,11 @@ def test_concurrent_access():
     s1.close()
     s2.close()
 
-
 def test_query_optimization():
     db = SessionLocal()
     result = db.execute(text("SELECT 1")).scalar()
     assert result == 1
     db.close()
-
 
 def test_migration_compatibility():
     db = SessionLocal()
