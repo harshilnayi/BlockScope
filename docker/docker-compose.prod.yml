@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.backend.prod
+    container_name: blockscope-backend
+    restart: always
+    ports:
+      - "8001:8000"
+    env_file:
+      - ../backend/.env
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - blockscope-network
+
+  frontend:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.frontend.prod
+    container_name: blockscope-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - blockscope-network
+
+  postgres:
+    image: postgres:15
+    container_name: blockscope-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: blockscope
+      POSTGRES_USER: blockscope
+      POSTGRES_PASSWORD: blockscope
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - blockscope-network
+
+  redis:
+    image: redis:7
+    container_name: blockscope-redis
+    restart: always
+    networks:
+      - blockscope-network
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: blockscope-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - blockscope-network
+
+volumes:
+  postgres_data:
+
+networks:
+  blockscope-network:
+    driver: bridge
