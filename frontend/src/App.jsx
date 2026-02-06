@@ -304,7 +304,7 @@ const ResultsList = ({ findings, fileName, loading, contractName }) => {
            Security Findings ({filteredFindings.length} of {findings.length})
         </h3>
         <div className="space-y-4">
-          {findings.map((finding, idx) => (
+          {filteredFindings.map((finding, idx) => (
             <FindingCard key={idx} finding={finding} index={idx} />
           ))}
         </div>
@@ -338,56 +338,6 @@ const ScanForm = ({ onSubmit, loading }) => {
       setTimeout(() => setShowError(false), 5000);
     }
   }, [error]);
-
-  const handleFileUpload = (e) => {
-    try {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      if (!file.name.endsWith('.sol')) {
-        setError('❌ Please upload a .sol file');
-        return;
-      }
-
-      setError('');
-      setFileName(file.name);
-
-      // Extract contract name from filename
-      const nameWithoutExt = file.name.replace('.sol', '');
-      setContractName(nameWithoutExt);
-
-      const reader = new FileReader();
-      reader.onloadstart = () => setUploadProgress(0);
-      reader.onprogress = (e) => {
-        if (e.lengthComputable) {
-          setUploadProgress((e.loaded / e.total) * 100);
-        }
-      };
-      reader.onload = (event) => {
-        try {
-          const content = event.target?.result;
-          if (typeof content === 'string') {
-            setContractCode(content);
-            setFilePreview(content.substring(0, 500) + (content.length > 500 ? '...' : ''));
-            setUploadProgress(100);
-
-            // Add to history
-            const newHistory = [{ name: file.name, size: file.size, date: new Date().toLocaleString() }, ...uploadHistory].slice(0, 10);
-            setUploadHistory(newHistory);
-            localStorage.setItem('upload_history', JSON.stringify(newHistory));
-          }
-        } catch (err) {
-          setError('❌ Error reading file: ' + err.message);
-        }
-      };
-      reader.onerror = () => {
-        setError('❌ Failed to read file. Please try again.');
-      };
-      reader.readAsText(file);
-    } catch (err) {
-      setError('❌ Error handling file upload: ' + err.message);
-    }
-  };
 
   const handleDrag = (e) => {
     try {
@@ -470,12 +420,6 @@ const ScanForm = ({ onSubmit, loading }) => {
           className="hidden"
         />
       </div>
-
-  // Load history from local storage on mount
-  useEffect(() => {
-    const history = JSON.parse(localStorage.getItem('upload_history') || '[]');
-    setUploadHistory(history);
-  }, []);
 
   const handleFileUpload = (e) => {
     try {
