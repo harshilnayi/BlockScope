@@ -97,23 +97,33 @@ const FindingCard = ({ finding, index }) => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="border-l-4 rounded-lg p-6 bg-gray-50 animate-pulse">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-4 flex-1">
-            <div className="w-6 h-6 bg-gray-300 rounded"></div>
-            <div className="flex-1">
-              <div className="h-4 bg-gray-300 rounded mb-2"></div>
-              <div className="h-3 bg-gray-300 rounded mb-1"></div>
-              <div className="h-3 bg-gray-300 rounded w-3/4"></div>
-            </div>
-          </div>
-          <div className="w-16 h-6 bg-gray-300 rounded-full"></div>
+  return (
+  <div className="border-l-4 border-blue-500 rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow">
+    <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start gap-4 flex-1">
+        {/* Icon / Leading Visual */}
+        <div className="text-blue-500">
+          <InfoIcon className="w-6 h-6" />
+        </div>
+
+        {/* Text Content */}
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-gray-900 leading-none mb-1">
+            {data.title}
+          </h3>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            {data.description}
+          </p>
         </div>
       </div>
-    );
-  }
+
+      {/* Action or Status Badge */}
+      <span className="px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+        {data.status}
+      </span>
+    </div>
+  </div>
+);
 
   return (
     <div
