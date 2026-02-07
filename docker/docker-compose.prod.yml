@@ -16,6 +16,14 @@ services:
       - redis
     networks:
       - blockscope-network
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
 
   frontend:
     build:
@@ -29,6 +37,14 @@ services:
       - backend
     networks:
       - blockscope-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
 
   postgres:
     image: postgres:15
@@ -37,11 +53,20 @@ services:
     environment:
       POSTGRES_DB: blockscope
       POSTGRES_USER: blockscope
-      POSTGRES_PASSWORD: blockscope
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - blockscope-network
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
 
   redis:
     image: redis:7
@@ -49,6 +74,14 @@ services:
     restart: always
     networks:
       - blockscope-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
 
   nginx:
     image: nginx:stable-alpine
@@ -63,6 +96,14 @@ services:
       - backend
     networks:
       - blockscope-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
 
 volumes:
   postgres_data:
