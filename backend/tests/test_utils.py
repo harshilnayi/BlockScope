@@ -20,7 +20,7 @@ def test_score_never_negative():
             description="x",
             line_number=1,
             code_snippet="x",
-            remediation="x"
+            remediation="x",
         )
     ] * 50
 
@@ -46,7 +46,7 @@ def test_merge_deduplication():
             description="x",
             line_number=1,
             code_snippet="x",
-            remediation="x"
+            remediation="x",
         )
     ]
 
@@ -59,7 +59,7 @@ def test_merge_deduplication():
             description="x",
             line_number=1,
             code_snippet="x",
-            remediation="x"
+            remediation="x",
         )
     ]
 
