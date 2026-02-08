@@ -1,6 +1,15 @@
-from app.models.scan import Scan, Finding
+import pytest
+from  app.models.base import Base
+
+@pytest.fixture(autouse=True)
+def clear_metadata():
+    """
+    Prevent SQLAlchemy table re-definition errors during test collection.
+    """
+    Base.metadata.clear()
 
 def test_scan_model_creation():
+    from  app.models.scan import Scan
     scan = Scan(
         contract_name="A",
         source_code="code",
@@ -10,11 +19,13 @@ def test_scan_model_creation():
         vulnerabilities_count=0,
         severity_breakdown={},
         findings=[],
-        scanned_at=None
+        scanned_at=None,
     )
     assert scan.contract_name == "A"
 
+
 def test_vulnerability_model():
+    from  app.models.scan import Finding
     f = Finding(
         scan_id=1,
         rule_id="R1",
@@ -23,18 +34,24 @@ def test_vulnerability_model():
         description="d",
         line_number=1,
         code_snippet="x",
-        remediation="fix"
+        remediation="fix",
     )
     assert f.severity == "high"
 
+
 def test_relationships():
+    from  app.models.scan import Scan, Finding
     scan = Scan.__table__.name
     finding = Finding.__table__.name
     assert scan == "scans"
     assert finding == "findings"
 
+
 def test_constraints():
+    from  app.models.scan import Finding
     assert Finding.rule_id.property.columns[0].nullable is False
 
+
 def test_data_validation():
+    from  app.models.scan import Finding
     assert isinstance(Finding.severity.type.length, int)
