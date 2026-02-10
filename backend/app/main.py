@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers.scan import router as scan_router
+from backend.app.routers.scan import router as scan_router
 
 app = FastAPI(
     title="BlockScope API",

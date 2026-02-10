@@ -1,5 +1,5 @@
 import pytest
-from  app.models.base import Base
+from backend.app.models.base import Base
 
 @pytest.fixture(autouse=True)
 def clear_metadata():
@@ -9,7 +9,7 @@ def clear_metadata():
     Base.metadata.clear()
 
 def test_scan_model_creation():
-    from  app.models.scan import Scan
+    from backend.app.models import Scan
     scan = Scan(
         contract_name="A",
         source_code="code",
@@ -25,7 +25,7 @@ def test_scan_model_creation():
 
 
 def test_vulnerability_model():
-    from  app.models.scan import Finding
+    from backend.app.models import Finding
     f = Finding(
         scan_id=1,
         rule_id="R1",
@@ -40,7 +40,7 @@ def test_vulnerability_model():
 
 
 def test_relationships():
-    from  app.models.scan import Scan, Finding
+    from backend.app.models import Scan, Finding
     scan = Scan.__table__.name
     finding = Finding.__table__.name
     assert scan == "scans"
@@ -48,10 +48,10 @@ def test_relationships():
 
 
 def test_constraints():
-    from  app.models.scan import Finding
+    from backend.app.models import Finding
     assert Finding.rule_id.property.columns[0].nullable is False
 
 
 def test_data_validation():
-    from  app.models.scan import Finding
+    from backend.app.models import Finding
     assert isinstance(Finding.severity.type.length, int)

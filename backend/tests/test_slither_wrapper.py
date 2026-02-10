@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from backend.cli.slither_wrapper import SlitherWrapper
+from backend.analysis.slither_wrapper import SlitherWrapper
 
 
 def test_valid_contract_analysis(tmp_path, monkeypatch):

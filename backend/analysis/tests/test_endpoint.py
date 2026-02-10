@@ -2,7 +2,8 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from app.main import app  # Adjust import based on your app structure
+from backend.app.main import app
+  # Adjust import based on your app structure
 import tempfile
 import os
 
