@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle, AlertTriangle, Info, Upload, Loader, BarChart3, Shield, Code2, Zap, ArrowRight, Sparkles } from 'lucide-react';
+import { AlertCircle, CheckCircle, AlertTriangle, Info, Upload, Loader, BarChart3, Shield, Code2, Zap, ArrowRight, Sparkles, Copy, Download, Search } from 'lucide-react';
 
 // API Service with error handling
 const API_BASE_URL = 'http://localhost:5000/api/v1';
@@ -10,17 +10,17 @@ const apiClient = {
       const response = await fetch(`${API_BASE_URL}/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          source_code: sourceCode, 
+        body: JSON.stringify({
+          source_code: sourceCode,
           contract_name: contractName || 'UnnamedContract',
           file_path: 'api_upload'
         })
       });
-      
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
-      
+
       const data = await response.json();
       return data;
     } catch (error) {
@@ -33,26 +33,26 @@ const apiClient = {
 // Severity Badge with gradient
 const SeverityBadge = ({ severity }) => {
   const severityConfig = {
-    CRITICAL: { 
-      bg: 'bg-gradient-to-r from-red-500 to-red-600', 
+    CRITICAL: {
+      bg: 'bg-gradient-to-r from-red-500 to-red-600',
       text: 'text-white',
       ring: 'ring-2 ring-red-300',
       glow: 'shadow-lg shadow-red-500/50'
     },
-    HIGH: { 
-      bg: 'bg-gradient-to-r from-orange-500 to-orange-600', 
+    HIGH: {
+      bg: 'bg-gradient-to-r from-orange-500 to-orange-600',
       text: 'text-white',
       ring: 'ring-2 ring-orange-300',
       glow: 'shadow-lg shadow-orange-500/50'
     },
-    MEDIUM: { 
-      bg: 'bg-gradient-to-r from-yellow-500 to-yellow-600', 
+    MEDIUM: {
+      bg: 'bg-gradient-to-r from-yellow-500 to-yellow-600',
       text: 'text-white',
       ring: 'ring-2 ring-yellow-300',
       glow: 'shadow-lg shadow-yellow-500/50'
     },
-    LOW: { 
-      bg: 'bg-gradient-to-r from-blue-500 to-blue-600', 
+    LOW: {
+      bg: 'bg-gradient-to-r from-blue-500 to-blue-600',
       text: 'text-white',
       ring: 'ring-2 ring-blue-300',
       glow: 'shadow-lg shadow-blue-500/50'
@@ -71,7 +71,8 @@ const SeverityBadge = ({ severity }) => {
 // Finding Card with animations
 const FindingCard = ({ finding, index }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+  const [copySuccess, setCopySuccess] = useState(false);
+
   const iconMap = {
     CRITICAL: <AlertCircle className="w-6 h-6" />,
     HIGH: <AlertTriangle className="w-6 h-6" />,
@@ -81,13 +82,51 @@ const FindingCard = ({ finding, index }) => {
 
   const colorMap = {
     CRITICAL: 'border-red-300 bg-red-50 hover:bg-red-100',
-    HIGH: 'border-orange-300 bg-orange-50 hover:bg-orange-100',
+    HIGH: 'border-red-300 bg-red-50 hover:bg-red-100',
     MEDIUM: 'border-yellow-300 bg-yellow-50 hover:bg-yellow-100',
-    LOW: 'border-blue-300 bg-blue-50 hover:bg-blue-100'
+    LOW: 'border-green-300 bg-green-50 hover:bg-green-100'
+  };
+
+  const handleCopyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(finding, null, 2));
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+    }
   };
 
   return (
-    <div 
+  <div className="border-l-4 border-blue-500 rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow">
+    <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start gap-4 flex-1">
+        {/* Icon / Leading Visual */}
+        <div className="text-blue-500">
+          <InfoIcon className="w-6 h-6" />
+        </div>
+
+        {/* Text Content */}
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-gray-900 leading-none mb-1">
+            {data.title}
+          </h3>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            {data.description}
+          </p>
+        </div>
+      </div>
+
+      {/* Action or Status Badge */}
+      <span className="px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+        {data.status}
+      </span>
+    </div>
+  </div>
+);
+
+  return (
+    <div
       className={`border-l-4 rounded-lg p-6 transition-all duration-300 cursor-pointer transform hover:scale-102 ${colorMap[finding.severity]}`}
       onClick={() => setIsExpanded(!isExpanded)}
     >
@@ -99,7 +138,7 @@ const FindingCard = ({ finding, index }) => {
           <div className="flex-1">
             <h3 className="text-lg font-bold text-gray-900 mb-2">{finding.title}</h3>
             <p className="text-gray-700 mb-3 leading-relaxed">{finding.description}</p>
-            
+
             {finding.line_number && (
               <div className="inline-block">
                 <span className="inline-block bg-gray-200 px-3 py-1 rounded text-sm font-mono text-gray-800 mb-3">
@@ -107,7 +146,7 @@ const FindingCard = ({ finding, index }) => {
                 </span>
               </div>
             )}
-            
+
             {isExpanded && finding.code && (
               <div className="mt-4 bg-gray-900 p-4 rounded-lg overflow-x-auto">
                 <pre className="text-xs text-green-400 font-mono">{finding.code}</pre>
@@ -115,6 +154,17 @@ const FindingCard = ({ finding, index }) => {
             )}
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCopyToClipboard();
+            }}
+            className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+            title="Copy to clipboard"
+          >
+            {copySuccess ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Copy className="w-5 h-5" />}
+          </button>
         <SeverityBadge severity={finding.severity} />
       </div>
     </div>
@@ -123,6 +173,17 @@ const FindingCard = ({ finding, index }) => {
 
 // Results List with premium styling
 const ResultsList = ({ findings, fileName, loading, contractName }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterSeverity, setFilterSeverity] = useState('All');
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!loading && findings && findings.length === 0) {
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    }
+  }, [loading, findings]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -148,13 +209,66 @@ const ResultsList = ({ findings, fileName, loading, contractName }) => {
     );
   }
 
+  const filteredFindings = findings.filter(finding => {
+    const matchesSearch = finding.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         finding.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = filterSeverity === 'All' || finding.severity === filterSeverity;
+    return matchesSearch && matchesFilter;
+  });
+
   const critical = findings.filter(f => f.severity === 'CRITICAL').length;
   const high = findings.filter(f => f.severity === 'HIGH').length;
   const medium = findings.filter(f => f.severity === 'MEDIUM').length;
   const low = findings.filter(f => f.severity === 'LOW').length;
 
+  const handleDownloadJSON = () => {
+    const dataStr = JSON.stringify({ contractName, findings, summary: { critical, high, medium, low, total: findings.length } }, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportFileDefaultName = `${contractName}_security_report.json`;
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
   return (
     <div className="space-y-8">
+      {/* Search and Filter */}
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+        <div className="relative w-full md:w-96">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search vulnerabilities..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2 w-full md:w-auto">
+          {["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"].map((level) => (
+            <button
+              key={level}
+              onClick={() => setFilterSeverity(level)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                filterSeverity === level
+                  ? 'bg-gray-800 text-white shadow-md'
+                  : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {level}
+            </button>
+          ))}
+          <button
+            onClick={handleDownloadJSON}
+            className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            title="Download JSON Report"
+          >
+            <Download className="w-5 h-5 text-gray-600" />
+          </button>
+        </div>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-6 text-white shadow-xl hover:shadow-2xl transition-shadow">
@@ -197,10 +311,10 @@ const ResultsList = ({ findings, fileName, loading, contractName }) => {
       <div>
         <h3 className="font-bold text-2xl text-gray-900 mb-6 flex items-center gap-2">
           <AlertCircle className="w-6 h-6 text-red-600" />
-          Security Findings ({findings.length})
+           Security Findings ({filteredFindings.length} of {findings.length})
         </h3>
         <div className="space-y-4">
-          {findings.map((finding, idx) => (
+          {filteredFindings.map((finding, idx) => (
             <FindingCard key={idx} finding={finding} index={idx} />
           ))}
         </div>
@@ -214,45 +328,26 @@ const ScanForm = ({ onSubmit, loading }) => {
   const [contractCode, setContractCode] = useState('');
   const [contractName, setContractName] = useState('');
   const [fileName, setFileName] = useState('');
+  const [fileSize, setFileSize] = useState(0);
+  const [filePreview, setFilePreview] = useState('');
   const [error, setError] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadHistory, setUploadHistory] = useState([]);
+  const [showError, setShowError] = useState(false);
 
-  const handleFileUpload = (e) => {
-    try {
-      const file = e.target.files?.[0];
-      if (!file) return;
+  // Load history from local storage on mount
+  useEffect(() => {
+    const history = JSON.parse(localStorage.getItem('upload_history') || '[]');
+    setUploadHistory(history);
+  }, []);
 
-      if (!file.name.endsWith('.sol')) {
-        setError('❌ Please upload a .sol file');
-        return;
-      }
-
-      setError('');
-      setFileName(file.name);
-      
-      // Extract contract name from filename
-      const nameWithoutExt = file.name.replace('.sol', '');
-      setContractName(nameWithoutExt);
-
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        try {
-          const content = event.target?.result;
-          if (typeof content === 'string') {
-            setContractCode(content);
-          }
-        } catch (err) {
-          setError('❌ Error reading file: ' + err.message);
-        }
-      };
-      reader.onerror = () => {
-        setError('❌ Failed to read file');
-      };
-      reader.readAsText(file);
-    } catch (err) {
-      setError('❌ Error handling file upload: ' + err.message);
+  useEffect(() => {
+    if (error) {
+      setShowError(true);
+      setTimeout(() => setShowError(false), 5000);
     }
-  };
+  }, [error]);
 
   const handleDrag = (e) => {
     try {
@@ -310,10 +405,10 @@ const ScanForm = ({ onSubmit, loading }) => {
         </div>
       )}
 
-      <div 
+      <div
         className={`relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ${
-          dragActive 
-            ? 'border-blue-500 bg-blue-50 shadow-xl scale-102' 
+          dragActive
+            ? 'border-blue-500 bg-blue-50 shadow-xl scale-102'
             : 'border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50 hover:shadow-lg'
         }`}
         onDragEnter={handleDrag}
@@ -336,10 +431,186 @@ const ScanForm = ({ onSubmit, loading }) => {
         />
       </div>
 
+  const handleFileUpload = (e) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (!file.name.endsWith('.sol')) {
+        setError('❌ Invalid file type. Please upload a .sol file.');
+        return;
+      }
+
+      if (file.size > 50 * 1024 * 1024) { // 50MB limit
+        setError('❌ File size exceeds 50MB limit.');
+        return;
+      }
+
+      setError('');
+      setFileName(file.name);
+      setFileSize(file.size);
+
+      // Extract contract name from filename
+      const nameWithoutExt = file.name.replace('.sol', '');
+      setContractName(nameWithoutExt);
+
+      const reader = new FileReader();
+      reader.onloadstart = () => setUploadProgress(0);
+      reader.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setUploadProgress((e.loaded / e.total) * 100);
+        }
+      };
+      reader.onload = (event) => {
+        try {
+          const content = event.target?.result;
+          if (typeof content === 'string') {
+            setContractCode(content);
+            setFilePreview(content.substring(0, 500) + (content.length > 500 ? '...' : '')); // Preview first 500 chars
+            setUploadProgress(100);
+
+            // Add to history
+            const newHistory = [{ name: file.name, size: file.size, date: new Date().toLocaleString() }, ...uploadHistory].slice(0, 10);
+            setUploadHistory(newHistory);
+            localStorage.setItem('upload_history', JSON.stringify(newHistory));
+          }
+        } catch (err) {
+          setError('❌ Error reading file: ' + err.message);
+        }
+      };
+      reader.onerror = () => {
+        setError('❌ Failed to read file. Please try again.');
+      };
+      reader.readAsText(file);
+    } catch (err) {
+      setError('❌ Error handling file upload: ' + err.message);
+    }
+  };
+
+  const handleDrag = (e) => {
+    try {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.type === "dragenter" || e.type === "dragover") {
+        setDragActive(true);
+      } else if (e.type === "dragleave") {
+        setDragActive(false);
+      }
+    } catch (err) {
+      console.error('Drag error:', err);
+    }
+  };
+
+  const handleDrop = (e) => {
+    try {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragActive(false);
+
+      const file = e.dataTransfer.files?.[0];
+      if (file) {
+        const fileInput = document.getElementById('fileInput');
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        fileInput.files = dataTransfer.files;
+        handleFileUpload({ target: fileInput });
+      }
+    } catch (err) {
+      console.error('Drop error:', err);
+      setError('❌ Error processing dropped file.');
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (!contractCode.trim()) {
+        setError('❌ Please provide contract code or upload a file.');
+        return;
+      }
+      setError('');
+      await onSubmit(contractCode, contractName || fileName || 'contract.sol');
+    } catch (err) {
+      setError('❌ Error submitting scan: ' + err.message);
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-8">
+      {error && (
+        <div className="bg-red-50 border-l-4 border-red-500 text-red-800 px-6 py-4 rounded-lg shadow-md animate-pulse">
+          <p className="font-semibold text-lg">{error}</p>
+        </div>
+      )}
+
+      <div
+        className={`relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ${
+          dragActive
+            ? 'border-blue-500 bg-blue-50 shadow-xl scale-102 ring-4 ring-blue-200'
+            : 'border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50 hover:shadow-lg hover:border-blue-400'
+        }`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
+        <div onClick={() => document.getElementById('fileInput').click()} className="cursor-pointer">
+          <Upload className={`w-16 h-16 mx-auto mb-4 transition-transform ${dragActive ? 'scale-110 text-blue-700' : 'text-blue-600'}`} />
+          <p className="text-gray-900 font-bold text-xl mb-2">📁 Upload Your Solidity Contract</p>
+          <p className="text-gray-600 mb-2">or drag and drop</p>
+          <p className="text-gray-500 text-sm">.sol files only, max 50MB</p>
+        </div>
+        <input
+          id="fileInput"
+          type="file"
+          accept=".sol"
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+        {uploadProgress > 0 && uploadProgress < 100 && (
+          <div className="mt-4">
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+            </div>
+            <p className="text-sm text-gray-600 mt-2">Uploading... {Math.round(uploadProgress)}%</p>
+          </div>
+        )}
+      </div>
+
       {fileName && (
-        <p className="text-sm text-green-700 bg-green-50 px-6 py-4 rounded-lg font-semibold border-l-4 border-green-500">
-          ✅ File selected: {fileName}
-        </p>
+        <div className="bg-green-50 border-l-4 border-green-500 px-6 py-4 rounded-lg shadow-md">
+          <p className="text-green-800 font-semibold">✅ File selected: {fileName}</p>
+          <p className="text-green-700 text-sm">Size: {formatFileSize(fileSize)}</p>
+          {filePreview && (
+            <div className="mt-3">
+              <p className="text-green-800 font-medium text-sm mb-2">Preview:</p>
+              <pre className="bg-white p-3 rounded text-xs text-gray-800 font-mono overflow-x-auto max-h-32">{filePreview}</pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Upload History */}
+      {uploadHistory.length > 0 && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <h4 className="font-semibold text-gray-900 mb-3">Recent Uploads</h4>
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {uploadHistory.map((item, idx) => (
+              <div key={idx} className="flex justify-between text-sm text-gray-600">
+                <span>{item.name}</span>
+                <span>{formatFileSize(item.size)} - {item.date}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-6">
@@ -415,7 +686,7 @@ export default function App() {
       setContractName(uploadedContractName);
 
       const response = await apiClient.scanContract(contractCode, uploadedContractName);
-      
+
       try {
         const scanFindings = response.findings || [];
         setFindings(Array.isArray(scanFindings) ? scanFindings : []);
