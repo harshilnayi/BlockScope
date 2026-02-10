@@ -4,8 +4,8 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch
 from io import BytesIO
 
-from backend.app.main import app
-from backend.analysis.models import ScanResult
+from app.main import app
+from analysis.models import ScanResult
 
 client = TestClient(app)
 SCAN_URL = "/api/v1/scan"
