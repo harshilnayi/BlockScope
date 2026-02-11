@@ -14,6 +14,8 @@ class Finding:
     """Represents a detected vulnerability finding."""
     rule_id: str
     name: str
+    title: str
+    name: str
     severity: Severity
     description: str
     line_number: int

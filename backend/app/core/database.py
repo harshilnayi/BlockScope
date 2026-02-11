@@ -20,10 +20,6 @@ SessionLocal = sessionmaker(
     bind=engine,
 )
 
-# Base class for models
-Base = declarative_base()
-
-
 def get_db():
     """Get database session."""
     db = SessionLocal()

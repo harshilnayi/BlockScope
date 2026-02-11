@@ -1,9 +1,31 @@
 import click
 from pathlib import Path
 from backend.analysis import AnalysisOrchestrator, ScanRequest
-from backend.cli.slither_wrapper import SlitherWrapper
+from backend.analysis.slither_wrapper import SlitherWrapper
 import json
 from dataclasses import asdict
+
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="BlockScope - Smart Contract Security Scanner"
+    )
+
+    subparsers = parser.add_subparsers(dest="command")
+
+    scan_parser = subparsers.add_parser("scan", help="Scan a smart contract")
+    scan_parser.add_argument("path", help="Path to contract")
+
+    args = parser.parse_args()
+
+    if args.command == "scan":
+        print("Scanning contract...")
+    else:
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()
 
 @click.group()
 def cli():

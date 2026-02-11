@@ -13,7 +13,7 @@ Usage:
     result = orchestrator.analyze(ScanRequest(source_code=contract_code))
 """
 
-from analysis.orchestrator import AnalysisOrchestrator
+from .orchestrator import AnalysisOrchestrator
 from analysis.models import ScanRequest, ScanResult, Finding
 
 __all__ = [
