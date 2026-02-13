@@ -1,28 +1,23 @@
 """
-Analysis module exports.
+BlockScope Analysis Module.
 
-This module provides the core analysis components for smart contract security scanning:
-- AnalysisOrchestrator: Coordinates all vulnerability detection tools
-- ScanRequest: Input model for analysis requests
-- ScanResult: Output model containing findings and scores
-
-Usage:
-    from backend.analysis import AnalysisOrchestrator, ScanRequest, ScanResult
-    
-    orchestrator = AnalysisOrchestrator(rules=[...])
-    result = orchestrator.analyze(ScanRequest(source_code=contract_code))
+Exports core components for smart contract vulnerability analysis.
 """
 
-from backend.analysis.orchestrator import AnalysisOrchestrator
-from backend.analysis.models import ScanRequest, ScanResult, Finding
+from .models import Finding as PydanticFinding
+from .models import ScanRequest, ScanResult
+from .orchestrator import AnalysisOrchestrator
+
+# Also export the rule-based Finding for rule authors
+try:
+    from .rules.base import Finding as RuleFinding
+    from .rules.base import Severity, VulnerabilityRule
+except ImportError:
+    pass
 
 __all__ = [
     "AnalysisOrchestrator",
-    "ScanRequest", 
+    "ScanRequest",
     "ScanResult",
-    "Finding"
+    "PydanticFinding",
 ]
-
-# Version info
-__version__ = "1.0.0"
-__author__ = "BlockScope Team"

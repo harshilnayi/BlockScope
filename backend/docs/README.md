@@ -60,18 +60,21 @@ for vuln in findings:
 ## 📊 Supported Vulnerabilities
 
 ### Critical
+
 - Reentrancy Attacks
 - Integer Overflow/Underflow
 - Delegatecall to Untrusted Contract
 - Unchecked External Calls
 
 ### High
+
 - Access Control Issues
 - Flash Loan Attacks
 - Front-Running Vulnerabilities
 - Weak Randomness
 
 ### Medium
+
 - Timestamp Dependency
 - Oracle Manipulation
 - ERC-20 Transfer Issues
@@ -101,13 +104,13 @@ BlockScope consists of:
 
 ## 💻 Tech Stack
 
-| Component | Technology |
-|-----------|-------------|
-| Backend | Python 3.11 + FastAPI |
-| Frontend | React 18 + TailwindCSS |
-| Database | PostgreSQL + Redis |
-| Analysis | Slither + Custom AST |
-| ML | scikit-learn |
+| Component  | Technology              |
+| ---------- | ----------------------- |
+| Backend    | Python 3.11 + FastAPI   |
+| Frontend   | React 18 + TailwindCSS  |
+| Database   | PostgreSQL + Redis      |
+| Analysis   | Slither + Custom AST    |
+| ML         | scikit-learn            |
 | Deployment | Docker + GitHub Actions |
 
 ## 🤝 Contributing
@@ -115,6 +118,7 @@ BlockScope consists of:
 We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 **Getting Started**:
+
 1. Fork the repo
 2. Create a feature branch
 3. Make your changes

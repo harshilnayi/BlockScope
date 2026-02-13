@@ -1,40 +1,54 @@
-"""Database models for scans and findings."""
+"""
+SQLAlchemy models for scan data.
+
+Defines the Scan and Finding tables.
+"""
+
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, ForeignKey
+
+from app.core.database import Base
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
-from backend.app.core.database import Base
 
 
 class Scan(Base):
-    """Scan database model."""
+    """Represents a smart contract scan result."""
+
     __tablename__ = "scans"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     contract_name = Column(String(255), nullable=False)
     source_code = Column(Text, nullable=False)
-    status = Column(String(50), default="pending")  # pending, completed, failed
+    status = Column(String(50), default="completed")
+
+    # Analysis results
+    vulnerabilities_count = Column(Integer, default=0)
+    severity_breakdown = Column(JSON, nullable=True)
+    overall_score = Column(Integer, default=100)
+    summary = Column(Text, nullable=True)
+    findings = Column(JSON, nullable=True)  # JSON list of finding dicts
+
+    # Timestamps
+    scanned_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    findings = relationship("Finding", back_populates="scan", cascade="delete-orphan")
+
+    # Relationship to structured finding records (for normalized queries)
+    finding_records = relationship("Finding", back_populates="scan", cascade="all, delete-orphan")
 
 
 class Finding(Base):
-    """Finding/vulnerability database model."""
+    """Represents an individual vulnerability finding."""
+
     __tablename__ = "findings"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     scan_id = Column(Integer, ForeignKey("scans.id"), nullable=False)
-    rule_id = Column(String(100), nullable=False)
-    name = Column(String(255), nullable=False)
-    severity = Column(String(50), nullable=False)  # critical, high, medium, low
-    description = Column(Text, nullable=False)
-    line_number = Column(Integer, nullable=False)
-    code_snippet = Column(Text, nullable=False)
-    remediation = Column(Text, nullable=False)
-    confidence = Column(Float, default=1.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    scan = relationship("Scan", back_populates="findings")
+    title = Column(String(255), nullable=False)
+    severity = Column(String(50), nullable=False)
+    description = Column(Text)
+    line_number = Column(Integer, nullable=True)
+    code_snippet = Column(Text, nullable=True)
+    recommendation = Column(Text, nullable=True)
+
+    scan = relationship("Scan", back_populates="finding_records")

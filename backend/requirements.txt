@@ -1,16 +1,211 @@
+# ===================================
+# BLOCKSCOPE BACKEND REQUIREMENTS
+# ===================================
+# Production dependencies for a secure, scalable backend
+# Install: pip install -r requirements.txt --break-system-packages
+
+# ===================================
+# Core Web Framework
+# ===================================
 fastapi==0.109.0
-uvicorn==0.27.0
-sqlalchemy==2.0.23
-psycopg2-binary==2.9.9
-pydantic==2.5.0
-pydantic-settings==2.1.0
-python-jose==3.3.0
-bcrypt==4.1.1
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6  # File upload support
+
+# ===================================
+# Database & ORM
+# ===================================
+sqlalchemy==2.0.25
+alembic==1.13.1  # Database migrations
+psycopg2-binary==2.9.9  # PostgreSQL driver
+asyncpg==0.29.0  # Async PostgreSQL driver
+
+# ===================================
+# Redis & Caching
+# ===================================
 redis==5.0.1
-slither-analyzer==0.10.0
-click==8.1.7
-pytest==7.4.3
-black==23.12.0
-flake8==6.1.0
-mypy==1.7.1
-httpx
+hiredis==2.3.2  # High-performance Redis parser
+
+# ===================================
+# Authentication & Security
+# ===================================
+python-jose[cryptography]==3.3.0  # JWT tokens
+passlib[bcrypt]==1.7.4  # Password hashing
+bcrypt==4.1.2
+python-multipart==0.0.6  # Form data
+pyjwt==2.8.0  # JWT
+
+# ===================================
+# Data Validation
+# ===================================
+pydantic==2.5.3
+pydantic-settings==2.1.0  # Environment variable validation
+email-validator==2.1.0  # Email validation
+
+# ===================================
+# CORS & Security Headers
+# ===================================
+# (Included in FastAPI)
+
+# ===================================
+# Environment Variables
+# ===================================
+python-dotenv==1.0.0
+
+# ===================================
+# HTTP Client
+# ===================================
+httpx==0.26.0  # Async HTTP client
+requests==2.31.0  # Sync HTTP client
+
+# ===================================
+# Date & Time
+# ===================================
+python-dateutil==2.8.2
+
+# ===================================
+# Slither Integration (Smart Contract Analysis)
+# ===================================
+slither-analyzer==0.10.1
+crytic-compile==0.3.6
+
+# Solidity compiler manager
+py-solc-x==2.0.2
+
+# ===================================
+# Background Tasks (Optional)
+# ===================================
+celery==5.3.6
+flower==2.0.1  # Celery monitoring
+
+# ===================================
+# Monitoring & Logging
+# ===================================
+sentry-sdk[fastapi]==1.39.2  # Error tracking
+python-json-logger==2.0.7  # JSON logging
+structlog==24.1.0  # Structured logging
+
+# ===================================
+# Rate Limiting
+# ===================================
+# (Custom implementation using Redis)
+slowapi==0.1.9  # Alternative rate limiter
+
+# ===================================
+# Email
+# ===================================
+aiosmtplib==3.0.1  # Async SMTP
+jinja2==3.1.3  # Email templates
+
+# ===================================
+# Utilities
+# ===================================
+python-slugify==8.0.1
+pyyaml==6.0.1
+toml==0.10.2
+
+# ===================================
+# Testing
+# ===================================
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+httpx==0.26.0  # For testing async endpoints
+faker==22.4.0  # Generate fake data for tests
+
+# ===================================
+# Code Quality
+# ===================================
+black==24.1.1  # Code formatter
+isort==5.13.2  # Import sorter
+flake8==7.0.0  # Linter
+mypy==1.8.0  # Type checker
+bandit==1.7.6  # Security linter
+
+# ===================================
+# Documentation
+# ===================================
+# (FastAPI auto-generates docs)
+
+# ===================================
+# Performance
+# ===================================
+orjson==3.9.12  # Fast JSON
+ujson==5.9.0  # Ultra-fast JSON (alternative)
+
+# ===================================
+# Compression
+# ===================================
+# (Built into FastAPI/Starlette)
+
+# ===================================
+# Security Scanning
+# ===================================
+safety>=3.0.1  # Check for known security vulnerabilities
+
+# ===================================
+# Database Connection Pooling
+# ===================================
+# (Included in SQLAlchemy)
+
+# ===================================
+# File Type Detection
+# ===================================
+python-magic==0.4.27  # MIME type detection
+filetype==1.2.0  # File type identification
+
+# ===================================
+# Cryptography
+# ===================================
+cryptography==42.0.0
+
+# ===================================
+# API Documentation
+# ===================================
+# (FastAPI auto-generates Swagger/ReDoc)
+
+# ===================================
+# Profiling (Optional - Development)
+# ===================================
+py-spy==0.3.14  # Production profiler
+memory-profiler==0.61.0
+
+# ===================================
+# Prometheus Metrics (Optional)
+# ===================================
+prometheus-client==0.19.0
+prometheus-fastapi-instrumentator==6.1.0
+
+# ===================================
+# Version Info
+# ===================================
+# Generated on: 2026-01-26
+# Python version: 3.10+
+# FastAPI version: 0.109.0
+
+# ===================================
+# Installation Instructions
+# ===================================
+# 1. Create virtual environment:
+#    python -m venv venv
+#
+# 2. Activate virtual environment:
+#    - Linux/Mac: source venv/bin/activate
+#    - Windows: venv\Scripts\activate
+#
+# 3. Upgrade pip:
+#    pip install --upgrade pip
+#
+# 4. Install requirements:
+#    pip install -r requirements.txt --break-system-packages
+#
+# 5. For development dependencies:
+#    pip install -r requirements.dev.txt
+
+# ===================================
+# Security Notes
+# ===================================
+# - Keep dependencies updated: pip list --outdated
+# - Check for vulnerabilities: safety check
+# - Update regularly: pip install -U -r requirements.txt
+# - Pin versions in production for stability
