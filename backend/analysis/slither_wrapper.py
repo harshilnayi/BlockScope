@@ -16,28 +16,18 @@ class SlitherWrapper:
             print("⚠️  Slither not installed. Install with: pip install slither-analyzer")
             self.available = False
     
-    def parse_contract(self, file_path: str):
-        """
-        Parse Solidity contract using Slither.
-        
-        Args:
-            file_path: Path to Solidity file
-        
-        Returns:
-            Slither object with AST
-        """
+    def parse_contract(self, file_path: str | Path):
         if not self.available:
-            raise RuntimeError("Slither not available. Install: pip install slither-analyzer")
-        
-        file_path = Path(file_path)
-        
-        if not file_path.exists():
-            raise FileNotFoundError(f"Contract file not found: {file_path}")
-        
+            raise RuntimeError("Slither not available")
+
+        path = Path(file_path).resolve()
+
+        if not path.exists():
+            raise FileNotFoundError(f"Contract file not found: {path}")
+
         try:
-            # This will parse the contract
-            slither = self.Slither(str(file_path))
-            print(f"✅ Successfully parsed: {file_path.name}")
+            slither = self.Slither(str(path))
+            print(f"✅ Successfully parsed: {path.name}")
             return slither
         except Exception as e:
             print(f"❌ Error parsing contract: {e}")

@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from sqlalchemy.orm import Session
 from datetime import datetime
-from app.core.logger import logger
+from backend.app.core.logger import logger
 from backend.analysis.orchestrator import AnalysisOrchestrator
 from backend.analysis.models import ScanRequest as EngineScanRequest
-from app.core.database import get_db
+from backend.app.core.database import get_db
 from backend.app.models import Scan
 
 router = APIRouter(prefix="/api/v1", tags=["scans"])
@@ -38,7 +38,7 @@ async def scan_contract(
         if len(content) > MAX_FILE_SIZE:
             raise HTTPException(status_code=413, detail="file too large")
 
-        source_code = content.decode(errors="ignore")
+        source_code = content.decode("utf-8", errors="ignore").lstrip("\ufeff")
         contract_name = file.filename.replace(".sol", "")
 
         # -------- Run analysis (CORRECT WAY) --------
@@ -77,6 +77,7 @@ async def scan_contract(
         )
 
         db.add(scan_record)
+        db.flush()
         db.commit()
         db.refresh(scan_record)
 
