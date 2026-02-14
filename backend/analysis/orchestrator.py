@@ -130,7 +130,7 @@ class AnalysisOrchestrator:
                 encoding='utf-8'
             ) as tmp_file:
                 tmp_file.write(request.source_code)
-                tmp_file_path = str(Path(tmp_file.name).resolve())
+                tmp_file_path = tmp_file.name
             
             # Run Slither
             slither_obj = self.slither_wrapper.parse_contract(tmp_file_path)
@@ -176,7 +176,7 @@ class AnalysisOrchestrator:
                 encoding='utf-8'
             ) as tmp_file:
                 tmp_file.write(request.source_code)
-                tmp_file_path = str(Path(tmp_file.name).resolve())
+                tmp_file_path = tmp_file.name
             
             # Parse contract for rules (if Slither available)
             ast = None

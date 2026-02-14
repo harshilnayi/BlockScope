@@ -1,7 +1,7 @@
 """Database connection and session management."""
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from backend.app.core.settings import settings
+from sqlalchemy.orm import sessionmaker, declarative_base
+from app.core.settings import settings
 
 # Create engine
 engine = create_engine(
