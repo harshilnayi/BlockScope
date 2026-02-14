@@ -10,6 +10,7 @@ def test_finding_creation():
     finding = Finding(
         rule_id="TEST_001",
         name="Test Vulnerability",
+        title="Test Vulnerability",
         severity=Severity.CRITICAL,
         description="Test description",
         line_number=42,
@@ -27,6 +28,7 @@ def test_finding_repr():
     finding = Finding(
         rule_id="TEST_001",
         name="Test Vulnerability",
+        title="Test Vulnerability",
         severity=Severity.HIGH,
         description="Test",
         line_number=10,
