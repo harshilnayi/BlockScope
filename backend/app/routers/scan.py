@@ -4,6 +4,7 @@ Maintains existing scan logic while adding security features
 """
 
 from datetime import datetime
+
 from typing import Optional
 
 # Import existing modules (keep your structure)
@@ -14,6 +15,11 @@ from app.models.scan import Scan
 from app.schemas.scan_schema import ScanRequest, ScanResponse
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
+from backend.app.core.logger import logger
+from backend.analysis.orchestrator import AnalysisOrchestrator
+from backend.analysis.models import ScanRequest as EngineScanRequest
+from backend.app.core.database import get_db
+from backend.app.models import Scan
 
 # Import security modules (new - gracefully handle if not available)
 try:

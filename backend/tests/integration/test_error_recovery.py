@@ -1,3 +1,6 @@
+import pytest
+
+@pytest.mark.integration
 
 def test_malformed_contract_recovery(client, tmp_path):
     """
@@ -47,3 +50,9 @@ def test_malformed_contract_file_rejected(client, tmp_path):
         res = client.post("/api/v1/scan", files={"file": ("Bad.sol", f, "text/plain")})
 
     assert res.status_code in (200, 400)
+
+@pytest.mark.integration
+def test_get_scan_not_found(client):
+    res = client.get("/api/v1/scans/999999")
+    assert res.status_code == 404
+

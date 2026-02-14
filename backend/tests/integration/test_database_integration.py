@@ -1,5 +1,6 @@
-from http import client
+import pytest
 
+@pytest.mark.integration
 
 def test_scan_persisted_and_retrievable(client, tmp_path):
     # --- create temp solidity file ---

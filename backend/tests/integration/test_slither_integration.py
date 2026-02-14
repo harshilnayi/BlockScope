@@ -1,5 +1,7 @@
 import pytest
 
+@pytest.mark.integration
+
 def test_slither_execution_path(client, tmp_path):
     """
     Integration test for Slither execution path.
