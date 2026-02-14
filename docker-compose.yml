@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ﻿version: '3.8'
 
 services:
@@ -45,3 +46,44 @@ volumes:
 networks:
   default:
     name: blockscope_network
+=======
+version: "3.9"
+
+services:
+
+  frontend:
+    image: docker-frontend
+    container_name: blockscope-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  backend:
+    image: docker-backend
+    container_name: blockscope-backend
+    ports:
+      - "8001:8000"
+    depends_on:
+      - postgres
+      - redis
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: blockscope-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend
+
+  postgres:
+    image: postgres:15
+    container_name: blockscope-postgres
+    restart: always
+
+  redis:
+    image: redis:7
+    container_name: blockscope-redis
+    restart: always
+>>>>>>> 005d157 (Restore docker compose)
