@@ -7,9 +7,9 @@ pragma solidity ^0.8.0;
  */
 contract SimpleStorage {
     uint256 public storedData;
-    
+
     event DataStored(uint256 data);
-    
+
     /**
      * @dev Store a value
      * @param x The value to store
@@ -18,7 +18,7 @@ contract SimpleStorage {
         storedData = x;
         emit DataStored(x);
     }
-    
+
     /**
      * @dev Retrieve the stored value
      * @return The stored value

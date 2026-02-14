@@ -8,20 +8,20 @@ pragma solidity ^0.8.0;
 contract TestContract {
     uint256 public value;
     address public owner;
-    
+
     event ValueChanged(uint256 newValue);
     event OwnerChanged(address newOwner);
-    
+
     constructor() {
         owner = msg.sender;
         value = 0;
     }
-    
+
     modifier onlyOwner() {
         require(msg.sender == owner, "Not the owner");
         _;
     }
-    
+
     /**
      * @dev Set a new value
      */
@@ -29,14 +29,14 @@ contract TestContract {
         value = _value;
         emit ValueChanged(_value);
     }
-    
+
     /**
      * @dev Get the current value
      */
     function getValue() public view returns (uint256) {
         return value;
     }
-    
+
     /**
      * @dev Transfer ownership
      */

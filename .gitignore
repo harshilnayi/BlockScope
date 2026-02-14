@@ -1,3 +1,518 @@
+# ===================================
+# BLOCKSCOPE .gitignore
+# ===================================
+
+# ===================================
+# CRITICAL: Environment & Secrets
+# ===================================
+# NEVER commit these files!
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+.env.test
+
+# Environment variable files
+*.env
+.envrc
+.direnv/
+
+# Secret files
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+*.der
+*_rsa
+*_rsa.pub
+*.secret
+
+# API keys and tokens
+api_keys.txt
+tokens.txt
+credentials.json
+service-account*.json
+
+# ===================================
+# Python
+# ===================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# C extensions
+*.c
+*.cpp
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# ===================================
+# Node / JavaScript / Frontend
+# ===================================
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Directory for instrumented libs
+lib-cov
+
+# Coverage directory
+coverage
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage
+.grunt
+
+# Bower dependency directory
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Snowpack dependency directory
+web_modules/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+out
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# vuepress build output
+.vuepress/dist
+
+# vuepress v2.x temp and cache directory
+.temp
+.cache
+
+# Docusaurus cache and generated files
+.docusaurus
+.cache-loader
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# yarn v2
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ===================================
+# IDEs and Editors
+# ===================================
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+.history/
+*.vsix
+
+# JetBrains IDEs
+.idea/
+*.iws
+*.iml
+*.ipr
+.idea_modules/
+
+# Sublime Text
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+*.sublime-workspace
+*.sublime-project
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ===================================
+# Operating System Files
+# ===================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===================================
+# Database Files
+# ===================================
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+pgdata/
+mysql-data/
+postgres-data/
+
+# Database dumps
+*.dump
+*.sql.gz
+backup/
+
+# ===================================
+# Docker
+# ===================================
+.docker/
+docker-compose.override.yml
+
+# ===================================
+# Logs and Temporary Files
+# ===================================
+logs/
+*.log
+*.log.*
+tmp/
+temp/
+.tmp/
+*.tmp
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+*.swp
+*.swo
+
+# ===================================
+# Build and Distribution
+# ===================================
+dist/
+build/
+out/
+target/
+*.egg-info/
+.eggs/
+
+# ===================================
+# Testing
+# ===================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+test-results/
+test-reports/
+
+# ===================================
+# Documentation
+# ===================================
+docs/_build/
+site/
+
+# ===================================
+# CI/CD
+# ===================================
+.github/workflows/*.local.yml
+
+# ===================================
+# Security
+# ===================================
+# Never commit these
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+
+# Secret detection baseline
+.secrets.baseline
+
+# ===================================
+# Project Specific
+# ===================================
+# Uploaded files (development)
+/backend/uploads/
+/tmp/blockscope_uploads/
+/var/blockscope/uploads/
+
+# Analysis results cache
+/backend/cache/
+*.cache
+
+# Profiler output
+*.prof
+*.profile
+/tmp/blockscope_profiles/
+
+# Generated reports
+reports/
+*.pdf
+*.docx
+
+# Lock files (optional - comment out if you want to commit them)
+# package-lock.json
+# yarn.lock
+# Pipfile.lock
+# poetry.lock
+
+# ===================================
+# Keep Empty Directories
+# ===================================
+!.gitkeep
+!.keep
 # Node / Frontend
 node_modules/
 frontend/node_modules/
@@ -200,9 +715,9 @@ cython_debug/
 .abstra/
 
 # Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
+#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
 #  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
+#  and can be added to the global gitignore or merged into this file. However, if you prefer,
 #  you could uncomment the following to ignore the entire vscode folder
 # .vscode/
 
