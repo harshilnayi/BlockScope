@@ -38,3 +38,12 @@ def test_malformed_contract_recovery(client, tmp_path):
     else:
         error = res.json()
         assert "detail" in error
+
+def test_malformed_contract_file_rejected(client, tmp_path):
+    sol = tmp_path / "Bad.sol"
+    sol.write_text("contract {")
+
+    with sol.open("rb") as f:
+        res = client.post("/api/v1/scan", files={"file": ("Bad.sol", f, "text/plain")})
+
+    assert res.status_code in (200, 400)

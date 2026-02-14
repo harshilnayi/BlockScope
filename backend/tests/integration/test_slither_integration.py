@@ -52,3 +52,12 @@ def test_slither_execution_path(client, tmp_path):
     # -------- Anything else is a real failure --------
     else:
         pytest.fail(f"Unexpected status code: {res.status_code}")
+
+def test_scan_without_slither_does_not_crash(client, tmp_path):
+    sol = tmp_path / "NoSlither.sol"
+    sol.write_text("pragma solidity ^0.8.0; contract NoSlither {}")
+
+    with sol.open("rb") as f:
+        res = client.post("/api/v1/scan", files={"file": ("NoSlither.sol", f, "text/plain")})
+
+    assert res.status_code in (200, 400)
