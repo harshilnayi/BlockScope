@@ -1,10 +1,7 @@
 import time
 import pytest
-from pathlib import Path
-from fastapi.testclient import TestClient
-from backend.app.main import app
+from datetime import datetime, timezone
 
-client = TestClient(app)
 
 
 # -----------------------------
@@ -28,7 +25,7 @@ CONTRACTS = {
         contract Broken {
             uint256 public x
         """,
-        200,  # system should recover safely
+        200,
     ),
     "empty": (
         "Empty.sol",
@@ -37,7 +34,7 @@ CONTRACTS = {
     ),
     "large": (
         "Large.sol",
-        "pragma solidity ^0.8.0;\ncontract Large {" + "uint x;\n" * 20000 + "}",
+        None,
         200,
     ),
     "invalid_ext": (
@@ -48,73 +45,75 @@ CONTRACTS = {
 }
 
 
-def upload_contract(filename: str, content: str):
-    """Helper to upload contract as multipart/form-data"""
-    return client.post(
-        "/api/v1/scan",
-        files={"file": (filename, content, "text/plain")},
-    )
-
-
-def get_scan(scan_id: int):
-    return client.get(f"/api/v1/scans/{scan_id}")
-
-
 # -----------------------------
 # FULL END-TO-END FLOW
 # -----------------------------
 @pytest.mark.integration
-def test_full_scan_flow():
-    """
-    End-to-End integration test:
-    Upload → Analyze → Store → Retrieve
-    Covers 5 contract types
-    Verifies correctness + performance
-    """
+@pytest.mark.parametrize(
+    "name,filename,source,expected_status",
+    [(k, *v) for k, v in CONTRACTS.items()],
+)
+def test_full_scan_flow(client, name, filename, source, expected_status):
+    
+    if name == "large":
+        source = (
+        "pragma solidity ^0.8.0;\n"
+        "contract Large {\n" +
+        ("uint x;\n" * 20_000) +
+        "}"
+    )
+    start_time = time.time()
 
-    for name, (filename, source, expected_status) in CONTRACTS.items():
-        start_time = time.time()
+    response = client.post(
+        "/api/v1/scan",
+        files={"file": (filename, source, "text/plain")},
+    )
 
-        response = upload_contract(filename, source)
+    duration = time.time() - start_time
 
-        duration = time.time() - start_time
+    # -------- Status check --------
+    assert response.status_code == expected_status, f"{name} failed"
 
-        # -------- Status check --------
-        assert response.status_code == expected_status, f"{name} failed"
+    if expected_status != 200:
+        return
 
-        if expected_status != 200:
-            continue
+    data = response.json()
 
-        data = response.json()
+    # -------- Large payload validation --------
+    if name == "large":
+        assert len(source.encode()) > 100_000  # ~100 KB
 
-        # -------- Basic response integrity --------
-        assert "scan_id" in data
-        assert data["scan_id"] is not None
-        assert data["contract_name"] == filename.replace(".sol", "")
-        assert "overall_score" in data
-        assert "summary" in data
-        assert "severity_breakdown" in data
-        assert "vulnerabilities" in data
+    # -------- Basic response integrity --------
+    assert data["scan_id"] is not None
+    assert data["contract_name"] == filename.replace(".sol", "")
+    assert "overall_score" in data
+    assert "summary" in data
+    assert "severity_breakdown" in data
+    assert "vulnerabilities" in data
 
-        # -------- Data consistency --------
-        assert data["overall_score"] >= 0
-        assert isinstance(data["severity_breakdown"], dict)
-        assert isinstance(data["vulnerabilities"], list)
+    # -------- Data consistency --------
+    vuln_count = len(data["vulnerabilities"])
+    breakdown_total = sum(data["severity_breakdown"].values())
+    assert vuln_count == breakdown_total
 
-        vuln_count = len(data["vulnerabilities"])
-        breakdown_total = sum(data["severity_breakdown"].values())
-        assert vuln_count == breakdown_total
+    # -------- Stored & retrievable --------
+    scan_id = data["scan_id"]
+    stored = client.get(f"/api/v1/scans/{scan_id}")
+    assert stored.status_code == 200
 
-        # -------- Stored & retrievable --------
-        scan_id = data["scan_id"]
-        stored = get_scan(scan_id)
+    stored_data = stored.json()
+    assert stored_data["scan_id"] == scan_id
+    assert stored_data["overall_score"] == data["overall_score"]
+    assert stored_data["summary"] == data["summary"]
+    assert stored_data["contract_name"] == filename.replace(".sol", "")
+    assert isinstance(stored_data["scan_timestamp"], str)
+    assert stored_data["vulnerabilities"] == data["vulnerabilities"]
+    assert isinstance(stored_data["scan_timestamp"], str)
 
-        assert stored.status_code == 200
-        stored_data = stored.json()
+    # -------- Timestamp validation --------
+    scan_time = datetime.fromisoformat(stored_data["scan_timestamp"])
+    assert scan_time.tzinfo is None or scan_time.tzinfo == timezone.utc
+    assert abs((datetime.utcnow() - scan_time).total_seconds()) < 60
 
-        assert stored_data["scan_id"] == scan_id
-        assert stored_data["overall_score"] == data["overall_score"]
-        assert stored_data["summary"] == data["summary"]
-
-        # -------- Performance benchmark --------
-        assert duration < 2.0, f"Scan too slow: {duration}s"
+    # -------- Performance benchmark --------
+    assert duration < 2.0, f"Scan too slow: {duration}s"

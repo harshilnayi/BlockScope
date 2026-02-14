@@ -1,4 +1,7 @@
-def test_scan_persisted_with_findings(client, tmp_path):
+from http import client
+
+
+def test_scan_persisted_and_retrievable(client, tmp_path):
     # --- create temp solidity file ---
     sol_file = tmp_path / "A.sol"
     sol_file.write_text("pragma solidity ^0.8.0; contract A {}")
@@ -21,12 +24,17 @@ def test_scan_persisted_with_findings(client, tmp_path):
     # --- DB persistence is OPTIONAL ---
     assert "scan_id" in data
 
-    if data["scan_id"] is not None:
-        scan_id = data["scan_id"]
+    assert data["scan_id"] is not None, "Scan was not persisted to DB"
 
-        res2 = client.get(f"/api/v1/scans/{scan_id}")
-        assert res2.status_code == 200
+    scan_id = data["scan_id"]
 
-        stored = res2.json()
-        assert stored["scan_id"] == scan_id
-        assert isinstance(stored["severity_breakdown"], dict)
+    res2 = client.get(f"/api/v1/scans/{scan_id}")
+    assert res2.status_code == 200
+
+    stored = res2.json()
+
+    assert stored["scan_id"] == scan_id
+    assert isinstance(stored["severity_breakdown"], dict)
+    assert isinstance(stored["overall_score"], (int, float))
+    assert isinstance(stored["scan_timestamp"], str)
+
