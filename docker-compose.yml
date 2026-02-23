@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 ﻿version: '3.8'
 
 services:
@@ -46,7 +46,7 @@ volumes:
 networks:
   default:
     name: blockscope_network
-=======
+
 version: "3.9"
 
 services:
@@ -86,4 +86,3 @@ services:
     image: redis:7
     container_name: blockscope-redis
     restart: always
->>>>>>> 005d157 (Restore docker compose)
