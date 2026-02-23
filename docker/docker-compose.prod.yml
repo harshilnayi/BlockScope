@@ -7,8 +7,6 @@ services:
       dockerfile: docker/Dockerfile.backend.prod
     container_name: blockscope-backend
     restart: always
-    ports:
-      - "8001:8000"
     env_file:
       - ../backend/.env
     depends_on:
@@ -31,8 +29,6 @@ services:
       dockerfile: docker/Dockerfile.frontend.prod
     container_name: blockscope-frontend
     restart: always
-    ports:
-      - "3000:80"
     depends_on:
       - backend
     networks:
