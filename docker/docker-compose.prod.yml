@@ -68,6 +68,9 @@ services:
     image: redis:7
     container_name: blockscope-redis
     restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    volumes:
+      - redis_data:/data
     networks:
       - blockscope-network
     deploy:
@@ -103,6 +106,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   blockscope-network:
