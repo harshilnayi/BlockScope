@@ -70,33 +70,6 @@ const SeverityBadge = ({ severity }) => {
   );
 };
 
-// Finding Card with animations
-const FindingCard = ({ finding, index }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [copySuccess, setCopySuccess] = useState(false);
-
-return(
-    // Modify the JSX for title and description
-<h3
-  className="text-lg font-bold text-gray-900 mb-2"
-  data-tooltip-id="finding-tooltip"
-  data-tooltip-content={finding.description}
->
-  {finding.title}
-</h3>
-<p
-  className="text-gray-700 mb-3 leading-relaxed"
-  data-tooltip-id="finding-tooltip"
-  data-tooltip-content="Click to expand for code details"
->
-  {finding.description}
-</p>
-
-<Tooltip id="finding-tooltip" />
-}
-
-)
-
   // New component: HelpModal
   const HelpModal = ({ isOpen, onClose }) => {
         if (!isOpen) return null;
@@ -136,7 +109,8 @@ return(
         </div>
       </div>
     </div>
-  );
+    );
+  }
 
   const iconMap = {
     CRITICAL: <AlertCircle className="w-6 h-6" />,
@@ -152,6 +126,12 @@ return(
     LOW: 'border-green-300 bg-green-50 hover:bg-green-100'
   };
 
+
+
+// Finding Card with animations
+const FindingCard = ({ finding, index }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   const handleCopyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(JSON.stringify(finding, null, 2));
@@ -161,7 +141,6 @@ return(
       console.error('Failed to copy: ', err);
     }
   };
-
   return (
    <div className="border-l-4 border-blue-500 rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow">
     <div className="flex items-start justify-between gap-4">
@@ -173,10 +152,14 @@ return(
 
         {/* Text Content */}
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 leading-none mb-1">
+          <h3 className="text-lg font-bold text-gray-900 mb-2"
+                data-tooltip-id="finding-tooltip"
+                data-tooltip-content={finding.description}>
             {finding.title}
           </h3>
-          <p className="text-sm text-gray-600 leading-relaxed">
+          <p className="text-gray-700 mb-3 leading-relaxed"
+             data-tooltip-id="finding-tooltip"
+             data-tooltip-content="Click to expand for code details">
             {finding.description}
           </p>
         </div>
@@ -191,8 +174,7 @@ return(
 
     <div
       className={`border-l-4 rounded-lg p-6 transition-all duration-300 cursor-pointer transform hover:scale-102 ${colorMap[finding.severity]}`}
-      onClick={() => setIsExpanded(!isExpanded)}
-    >
+      onClick={() => setIsExpanded(!isExpanded)>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4 flex-1">
           <div className={`mt-1 ${finding.severity === 'CRITICAL' ? 'text-red-600' : finding.severity === 'HIGH' ? 'text-orange-600' : finding.severity === 'MEDIUM' ? 'text-yellow-600' : 'text-blue-600'}`}>
@@ -222,19 +204,17 @@ return(
             onClick={(e) => {
               e.stopPropagation();
               handleCopyToClipboard();
-            }}
+            }
             className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
-            title="Copy to clipboard"
-          >
-            {copySuccess ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Copy className="w-5 h-5" />}
+            title="Copy to clipboard">
+            {copySuccess ? <AlertCircle className="w-5 h-5 text-green-600"/> : <Copy className="w-5 h-5"/>
           </button>
-        <SeverityBadge severity={finding.severity} />
-      </div>
-    </div>
+        </div>
   );
+}}
 
 // Results List with premium styling
-const ResultsList = ({ findings, fileName, loading, contractName }) => {
+  const ResultsList = ({ findings, fileName, loading, contractName }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('All');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -329,9 +309,15 @@ const handleCopyShareableLink = async () => {
         </body>
         </html>
     `;
-  printWindow.document.write(printContent);
-  printWindow.document.close();
-  printWindow.print();
+  if (printWindow) {
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
+  } else {
+    // Handle popup if blocked
+    console.error('Popup blocked! Please allow popups for this site.');
+    alert('Please allow popups to print this document.');
+    }
 };
 
   const filteredFindings = findings.filter(finding => {
@@ -403,7 +389,7 @@ ${finding.code ? `\`\`\`solidity\n${finding.code}\n\`\`\`` : ''}
           />
         </div>
         <div className="flex gap-2 w-full md:w-auto">
-          {["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"].map((level) => (
+          {["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"].map((level) = (
               <button
                 onClick={handleCopyShareableLink}
                 className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
@@ -421,7 +407,7 @@ ${finding.code ? `\`\`\`solidity\n${finding.code}\n\`\`\`` : ''}
               </button>
 
               <button
-                onClick={handlePrint}
+                onClick=>{handlePrint}
                 className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
                 title="Print Report"
                 >
@@ -429,7 +415,7 @@ ${finding.code ? `\`\`\`solidity\n${finding.code}\n\`\`\`` : ''}
               </button>
 
             <button
-              key={level}
+              key=>{level}
               onClick={() => setFilterSeverity(level)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 filterSeverity === level
@@ -439,9 +425,9 @@ ${finding.code ? `\`\`\`solidity\n${finding.code}\n\`\`\`` : ''}
             >
               {level}
             </button>
-          ))}
+          )}
           <button
-            onClick={handleDownloadJSON}
+            onClick=>{handleDownloadJSON}
             className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
             title="Download JSON Report"
           >
@@ -633,41 +619,6 @@ const ScanForm = ({ onSubmit, loading, scanHistory, onRescan, onToggleFavorite, 
       setError('❌ Error submitting scan: ' + err.message);
     }
   };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 text-red-800 px-6 py-4 rounded-lg shadow-md animate-pulse">
-          <p className="font-semibold text-lg">{error}</p>
-        </div>
-      )}
-
-      <div
-        className={`relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ${
-          dragActive
-            ? 'border-blue-500 bg-blue-50 shadow-xl scale-102'
-            : 'border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50 hover:shadow-lg'
-        }`}
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-      >
-        <div onClick={() => document.getElementById('fileInput').click()} className="cursor-pointer">
-          <Upload className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-900 font-bold text-xl mb-2">📁 Upload Your Solidity Contract</p>
-          <p className="text-gray-600 mb-2">or drag and drop</p>
-          <p className="text-gray-500 text-sm">.sol files only</p>
-        </div>
-        <input
-          id="fileInput"
-          type="file"
-          accept=".sol"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
-      </div>
-   )
 
   const handleFileUpload = (e) => {
     try {
@@ -940,71 +891,72 @@ useEffect(() => {
 }, [currentPage]);
 
 
-  useEffect(() => {
+ useEffect(() => {
  const history = JSON.parse(localStorage.getItem('scan_history') || '[]');
  setScanHistory(history);
 }, []);
 
-const handleScan = async (contractCode, uploadedContractName) => {
- try {
-   setLoading(true);
-   setError('');
-   setContractName(uploadedContractName);
+  const handleScan = async (contractCode, uploadedContractName) => {
 
-   const response = await apiClient.scanContract(contractCode, uploadedContractName);
+    try {
+      setLoading(true);
+      setError('');
+      setContractName(uploadedContractName);
 
-   try {
-     const scanFindings = response.findings || [];
-     setFindings(Array.isArray(scanFindings) ? scanFindings : []);
+      const response = await apiClient.scanContract(contractCode, uploadedContractName);
 
-     // Save to scan history
-     const newScan = {
-       contractName: uploadedContractName,
-       contractCode,
-       findings: scanFindings,
-       findingsSummary: {
-         critical: scanFindings.filter(f => f.severity === 'CRITICAL').length,
-         high: scanFindings.filter(f => f.severity === 'HIGH').length,
-         medium: scanFindings.filter(f => f.severity === 'MEDIUM').length,
-         low: scanFindings.filter(f => f.severity === 'LOW').length,
-         total: scanFindings.length
-       },
-       date: new Date().toLocaleString(),
-       favorite: false
-     };
-     const updatedHistory = [newScan, ...scanHistory].slice(0, 10);
-     setScanHistory(updatedHistory);
-     localStorage.setItem('scan_history', JSON.stringify(updatedHistory));
+    try {
+      const scanFindings = response.findings || [];
+      setFindings(Array.isArray(scanFindings) ? scanFindings : []);
 
-     setCurrentPage('results');
-   } catch (parseErr) {
-     setError('Error parsing results: ' + parseErr.message);
-     setFindings([]);
+      // Save to scan history
+      const newScan = {
+        contractName: uploadedContractName,
+        contractCode,
+        findings: scanFindings,
+        findingsSummary: {
+          critical: scanFindings.filter(f => f.severity === 'CRITICAL').length,
+          high: scanFindings.filter(f => f.severity === 'HIGH').length,
+          medium: scanFindings.filter(f => f.severity === 'MEDIUM').length,
+          low: scanFindings.filter(f => f.severity === 'LOW').length,
+          total: scanFindings.length
+        },
+        date: new Date().toLocaleString(),
+        favorite: false
+      };
+      const updatedHistory = [newScan, ...scanHistory].slice(0, 10);
+      setScanHistory(updatedHistory);
+      localStorage.setItem('scan_history', JSON.stringify(updatedHistory));
+
+      setCurrentPage('results');
+    } catch (parseErr) {
+      setError('Error parsing results: ' + parseErr.message);
+      setFindings([]);
+    }
+  } catch (err) {
+    setError('Scan failed: ' + err.message);
+    console.error('Scan error:', err);
+  } finally {
+      setLoading(false);
    }
- } catch (err) {
-   setError('Scan failed: ' + err.message);
-   console.error('Scan error:', err);
- } finally {
-   setLoading(false);
- }
-};
+  };
 
-const handleRescan = async (scan) => {
- await handleScan(scan.contractCode, scan.contractName);
-};
+  const handleRescan = async (scan) => {
+   await handleScan(scan.contractCode, scan.contractName);
+  };
 
-const handleToggleFavorite = (index) => {
- const updatedHistory = [...scanHistory];
- updatedHistory[index].favorite = !updatedHistory[index].favorite;
- setScanHistory(updatedHistory);
- localStorage.setItem('scan_history', JSON.stringify(updatedHistory));
-};
+  const handleToggleFavorite = (index) => {
+   const updatedHistory = [...scanHistory];
+   updatedHistory[index].favorite = !updatedHistory[index].favorite;
+   setScanHistory(updatedHistory);
+   localStorage.setItem('scan_history', JSON.stringify(updatedHistory));
+  };
 
-const handleLoadFromHistory = (scan) => {
- setContractCode(scan.contractCode);
- setContractName(scan.contractName);
- setCurrentPage('scan');
-};
+  const handleLoadFromHistory = (scan) => {
+   setContractCode(scan.contractCode);
+   setContractName(scan.contractName);
+   setCurrentPage('scan');
+  };
 
 
   const handleNewScan = () => {
@@ -1054,7 +1006,7 @@ const handleLoadFromHistory = (scan) => {
                 <h2 className="text-4xl font-black text-gray-900">Smart Contract Security Scanner</h2>
               </div>
               <p className="text-gray-600 text-lg mb-8">Upload your Solidity contracts for instant vulnerability detection powered by Semgrep</p>
-              <ScanForm onSubmit={handleScan} loading={loading} />
+              <ScanForm onSubmit={handleScan} scanHistory={scanHistory} loading={loading} onRescan={handleRescan} onToggleFavorite={handleToggleFavorite} onLoadFromHistory={handleLoadFromHistory}/>
             </div>
 
             {/* Features */}
@@ -1128,7 +1080,7 @@ const handleLoadFromHistory = (scan) => {
      }}
 />
 
-      <style jsx>{`
+      <style>{`
         @keyframes blob {
           0%, 100% { transform: translate(0, 0) scale(1); }
           33% { transform: translate(30px, -50px) scale(1.1); }
