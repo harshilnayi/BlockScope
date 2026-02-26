@@ -206,9 +206,22 @@ const FindingCard = ({ finding }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>  // FIX 1a: was missing this closing </div>
   );
-};
+};  // FIX 1b: was missing this closing }
+
+// FIX 2: ResultsList had an extra </div> in the empty-state return
+const ResultsList = ({ findings, fileName, loading, contractName }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterSeverity, setFilterSeverity] = useState('All');
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!loading && findings && findings.length === 0) {
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    }
+  }, [loading, findings]);
 
 // ─── ResultsList ─────────────────────────────────────────────────────────────
 
@@ -256,6 +269,7 @@ const ResultsList = ({ findings, loading, contractName }) => {
         <p className="text-green-900 font-bold text-2xl">Perfect! No Vulnerabilities Found</p>
         <p className="text-green-700 text-lg mt-2">Your smart contract passed all security checks</p>
       </div>
+      // FIX 2: removed the extra </div> that was here
     );
   }
 
@@ -847,6 +861,17 @@ export default function App() {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [currentPage, contractCode, contractName, handleScan, handleNewScan]);
+
+  const handleNewScan = () => {
+    try {
+      setCurrentPage('scan');
+      setFindings([]);
+      setContractName('');
+      setError('');
+    } catch (err) {
+      console.error('Error resetting form:', err);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">

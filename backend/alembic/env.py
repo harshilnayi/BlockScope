@@ -4,8 +4,8 @@ import os
 from app.core.settings import settings
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, BASE_DIR)
-from app.core.database import Base
-from app.models.scan import Scan
+from backend.app.models.base import Base
+from backend.app.models import Scan
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 

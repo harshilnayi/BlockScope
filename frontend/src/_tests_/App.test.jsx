@@ -1,4 +1,4 @@
-import { render, screen, cleanup } from '@testing-library/react'
+import { render,  cleanup } from '@testing-library/react'
 import { describe, test, expect } from 'vitest'
 import App from '../App'
 import { vi } from 'vitest';
