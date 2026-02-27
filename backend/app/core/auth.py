@@ -64,7 +64,7 @@ class APIKey(Base):
         Index("idx_api_keys_created", "created_at"),
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<APIKey {self.key_prefix}... - {self.name}>"
 
 

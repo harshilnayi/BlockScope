@@ -1,12 +1,13 @@
 """Wrapper around Slither for AST parsing."""
 
 from pathlib import Path
+from typing import Any
 
 
 class SlitherWrapper:
     """Wrapper for Slither contract analysis."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Slither wrapper."""
         try:
             from slither import Slither
@@ -17,7 +18,7 @@ class SlitherWrapper:
             print("⚠️  Slither not installed. Install with: pip install slither-analyzer")
             self.available = False
 
-    def parse_contract(self, file_path: str):
+    def parse_contract(self, file_path: str) -> Any:
         """
         Parse Solidity contract using Slither.
 
@@ -44,7 +45,7 @@ class SlitherWrapper:
             print(f"❌ Error parsing contract: {e}")
             raise
 
-    def get_ast_nodes(self, slither_obj):
+    def get_ast_nodes(self, slither_obj: Any) -> Any:
         """
         Get AST nodes from parsed contract.
 

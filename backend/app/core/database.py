@@ -53,8 +53,11 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+from typing import Generator
+from sqlalchemy.orm import Session
+
 # Dependency for FastAPI
-def get_db():
+def get_db() -> Generator[Session, None, None]:
     """
     Database session dependency for FastAPI.
 
@@ -66,7 +69,7 @@ def get_db():
             items = db.query(Item).all()
             return items
     """
-    db = SessionLocal()
+    db: Session = SessionLocal()
     try:
         yield db
     finally:
@@ -74,7 +77,7 @@ def get_db():
 
 
 # Helper function to test database connection
-def test_connection():
+def test_connection() -> bool:
     """
     Test database connection.
 
@@ -91,7 +94,7 @@ def test_connection():
 
 
 # Initialize database tables
-def init_db():
+def init_db() -> None:
     """
     Initialize database tables.
 

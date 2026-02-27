@@ -8,7 +8,8 @@ from .rules.base import Finding, VulnerabilityRule
 class SmartContractScanner:
     """Scanner that orchestrates vulnerability detection rules."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize SmartContractScanner."""
         self.rules: List[VulnerabilityRule] = []
 
     def register_rule(self, rule: VulnerabilityRule) -> None:

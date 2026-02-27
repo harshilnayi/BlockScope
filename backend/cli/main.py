@@ -4,9 +4,10 @@ import click
 
 from backend.analysis import AnalysisOrchestrator, ScanRequest
 
+from typing import Optional
 
 @click.group()
-def cli():
+def cli() -> None:
     """BlockScope - Smart Contract Vulnerability Scanner"""
 
 
@@ -22,7 +23,7 @@ def cli():
 @click.option(
     "--contract-name", "-n", default=None, help="Contract name (auto-detected if not provided)"
 )
-def scan(contract_file, output, contract_name):
+def scan(contract_file: str, output: str, contract_name: Optional[str]) -> None:
     """
     Scan a Solidity contract for vulnerabilities.
 

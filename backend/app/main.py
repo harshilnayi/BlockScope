@@ -5,14 +5,19 @@ Secure, production-ready FastAPI application with comprehensive security feature
 
 import logging
 import sys
+import time
+import uuid
+from typing import Any, Callable
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
+
+from app.core.logger import logger as app_logger, request_id_var
 
 # Try to import security modules, fall back gracefully if not available
 try:
@@ -41,12 +46,8 @@ except ImportError:
     print("⚠️  Scan router not found. Please ensure app/routers/scan.py exists.")
     scan_router = None
 
-# Setup logging
-logging.basicConfig(
-    level=logging.DEBUG if settings.DEBUG else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+# Setup logging is handled by app.core.logger
+logger = app_logger
 
 # ===================================
 # CREATE FASTAPI APP
@@ -64,7 +65,7 @@ app = FastAPI(
 # STARTUP EVENTS
 # ===================================
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     """Initialize application on startup"""
     logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
 
@@ -98,7 +99,7 @@ async def startup_event():
 
 
 @app.on_event("shutdown")
-async def shutdown_event():
+async def shutdown_event() -> None:
     """Cleanup on shutdown"""
     logger.info("👋 Shutting down application")
 
@@ -154,7 +155,7 @@ if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
         from app.core.rate_limit import RateLimitMiddleware, rate_limit_redis
 
         @app.on_event("startup")
-        async def add_rate_limit():
+        async def add_rate_limit() -> None:
             app.add_middleware(
                 RateLimitMiddleware, redis_client=rate_limit_redis.redis, enabled=True
             )
@@ -164,12 +165,50 @@ if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
         logger.warning("⚠️  Rate limiting not available")
 
 # ===================================
+# MIDDLEWARE FOR LOGGING
+# ===================================
+
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next: Callable) -> Response:
+    """Middleware for request ID tracking and performance logging."""
+    request_id = request.headers.get("X-Request-ID", uuid.uuid4().hex)
+    token = request_id_var.set(request_id)
+    
+    start_time = time.time()
+    
+    app_logger.info("Request started", extra={
+        "method": request.method,
+        "url": str(request.url),
+        "client_host": request.client.host if request.client else None
+    })
+    
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Process-Time"] = str(process_time)
+        
+        app_logger.info("Request completed", extra={
+            "status_code": response.status_code,
+            "process_time_ms": round(process_time * 1000, 2)
+        })
+        return response
+    except Exception as exc:
+        process_time = time.time() - start_time
+        app_logger.exception("Request failed", exc_info=exc, extra={
+            "process_time_ms": round(process_time * 1000, 2)
+        })
+        raise
+    finally:
+        request_id_var.reset(token)
+
+# ===================================
 # EXCEPTION HANDLERS
 # ===================================
 
 
 @app.exception_handler(404)
-async def not_found_handler(request: Request, exc):
+async def not_found_handler(request: Request, exc: Exception) -> JSONResponse:
     """Custom 404 handler"""
     return JSONResponse(
         status_code=404,
@@ -182,7 +221,7 @@ async def not_found_handler(request: Request, exc):
 
 
 @app.exception_handler(500)
-async def internal_error_handler(request: Request, exc):
+async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
     """Custom 500 handler"""
     logger.error(f"Internal error: {exc}")
     return JSONResponse(
@@ -200,7 +239,7 @@ async def internal_error_handler(request: Request, exc):
 
 
 @app.get("/health", tags=["System"])
-async def health_check():
+async def health_check() -> dict[str, str]:
     """
     Health check endpoint for monitoring and load balancers.
 
@@ -233,7 +272,7 @@ async def health_check():
 
 
 @app.get("/", tags=["System"])
-async def root():
+async def root() -> dict[str, Any]:
     """
     Root endpoint with API information.
 
@@ -258,7 +297,7 @@ async def root():
 
 
 @app.get("/api/v1/info", tags=["System"])
-async def api_info():
+async def api_info() -> dict[str, Any]:
     """
     Detailed API information.
 
@@ -308,7 +347,7 @@ else:
 if settings.DEBUG:
 
     @app.get("/debug/routes", tags=["Debug"], include_in_schema=False)
-    async def debug_routes():
+    async def debug_routes() -> dict[str, Any]:
         """List all available routes (debug only)"""
         routes = []
         for route in app.routes:
@@ -319,7 +358,7 @@ if settings.DEBUG:
         return {"routes": routes}
 
     @app.get("/debug/config", tags=["Debug"], include_in_schema=False)
-    async def debug_config():
+    async def debug_config() -> dict[str, Any]:
         """Show current configuration (debug only)"""
         if SECURITY_ENABLED:
             return {

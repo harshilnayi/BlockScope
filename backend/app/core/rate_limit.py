@@ -22,12 +22,12 @@ class RateLimitRedis:
     _instance = None
     _redis: Optional[aioredis.Redis] = None
 
-    def __new__(cls):
+    def __new__(cls: Any) -> "RateLimitRedis":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    async def connect(self):
+    async def connect(self) -> None:
         """Establish Redis connection"""
         if self._redis is None:
             self._redis = await aioredis.from_url(
@@ -39,7 +39,7 @@ class RateLimitRedis:
                 decode_responses=True,
             )
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Close Redis connection"""
         if self._redis:
             await self._redis.close()
@@ -65,7 +65,8 @@ class RateLimiter:
     Implements token bucket algorithm with Redis sorted sets.
     """
 
-    def __init__(self, redis_client: aioredis.Redis, prefix: str = "ratelimit"):
+    def __init__(self, redis_client: aioredis.Redis, prefix: str = "ratelimit") -> None:
+        """Initialize RateLimiter with redis and prefix."""
         self.redis = redis_client
         self.prefix = prefix
 
@@ -234,7 +235,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Checks rate limits before processing requests.
     """
 
-    def __init__(self, app: ASGIApp, redis_client: aioredis.Redis, enabled: bool = True):
+    def __init__(self, app: ASGIApp, redis_client: aioredis.Redis, enabled: bool = True) -> None:
+        """Initialize RateLimitMiddleware with app and redis client."""
         super().__init__(app)
         self.limiter = RateLimiter(redis_client)
         self.enabled = enabled and settings.RATE_LIMIT_ENABLED
@@ -360,7 +362,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 def rate_limit(
     per_minute: Optional[int] = None, per_hour: Optional[int] = None, per_day: Optional[int] = None
-):
+) -> Callable:
     """
     Decorator for route-specific rate limits.
 
@@ -376,8 +378,8 @@ def rate_limit(
             ...
     """
 
-    def decorator(func):
-        func._rate_limit = {"per_minute": per_minute, "per_hour": per_hour, "per_day": per_day}
+    def decorator(func: Callable) -> Callable:
+        func._rate_limit = {"per_minute": per_minute, "per_hour": per_hour, "per_day": per_day} # type: ignore
         return func
 
     return decorator

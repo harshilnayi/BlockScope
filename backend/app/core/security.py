@@ -22,7 +22,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     Implements OWASP security best practices.
     """
 
-    def __init__(self, app: ASGIApp):
+    def __init__(self, app: ASGIApp) -> None:
+        """Initialize SecurityHeadersMiddleware with app."""
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -80,8 +81,9 @@ class FileValidator:
     """
 
     def __init__(
-        self, max_size: int = settings.MAX_UPLOAD_SIZE, allowed_extensions: List[str] = None
-    ):
+        self, max_size: int = settings.MAX_UPLOAD_SIZE, allowed_extensions: Optional[List[str]] = None
+    ) -> None:
+        """Initialize FileValidator with max size and allowed extensions."""
         self.max_size = max_size
         self.allowed_extensions = allowed_extensions or settings.ALLOWED_EXTENSIONS
 
@@ -368,7 +370,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     Log all requests for security auditing.
     """
 
-    def __init__(self, app: ASGIApp):
+    def __init__(self, app: ASGIApp) -> None:
+        """Initialize RequestLoggingMiddleware with app."""
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -422,7 +425,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 # ==================== Helper Functions ====================
 
 
-def setup_cors(app) -> None:
+def setup_cors(app: ASGIApp) -> None:
     """
     Configure CORS middleware.
 
@@ -439,7 +442,7 @@ def setup_cors(app) -> None:
     )
 
 
-def setup_security_middleware(app) -> None:
+def setup_security_middleware(app: ASGIApp) -> None:
     """
     Setup all security middleware.
 

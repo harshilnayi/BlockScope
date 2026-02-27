@@ -29,7 +29,7 @@ class Scan(Base):
     findings = Column(JSON, nullable=True)  # JSON list of finding dicts
 
     # Timestamps
-    scanned_at = Column(DateTime, default=datetime.utcnow)
+    scanned_at = Column(DateTime, default=datetime.utcnow, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

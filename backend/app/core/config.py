@@ -5,7 +5,7 @@ Handles all environment variables with validation using Pydantic Settings
 
 import secrets
 from functools import lru_cache
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import EmailStr, Field, HttpUrl, PostgresDsn, RedisDsn, conint, constr, validator
 from pydantic_settings import BaseSettings
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     )
 
     @validator("ENVIRONMENT")
-    def validate_environment(cls, v):
+    def validate_environment(cls: Any, v: str) -> str:
         """Ensure environment is one of allowed values"""
         allowed = ["development", "staging", "production"]
         if v not in allowed:
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
         return v
 
     @validator("LOG_LEVEL")
-    def validate_log_level(cls, v):
+    def validate_log_level(cls: Any, v: str) -> str:
         """Ensure log level is valid"""
         allowed = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if v.upper() not in allowed:
@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     DB_ECHO: bool = Field(default=False, description="Log SQL statements")
 
     @validator("DATABASE_URL", pre=True)
-    def validate_database_url(cls, v):
+    def validate_database_url(cls: Any, v: str) -> str:
         """Ensure database URL is properly formatted"""
         if not v:
             raise ValueError("DATABASE_URL is required")
@@ -96,7 +96,7 @@ class Settings(BaseSettings):
     )
 
     @validator("SECRET_KEY", "JWT_SECRET_KEY")
-    def validate_secret_keys(cls, v):
+    def validate_secret_keys(cls: Any, v: str) -> str:
         """Ensure secret keys are strong"""
         if v in [
             "changeme",
@@ -110,7 +110,7 @@ class Settings(BaseSettings):
         return v
 
     @validator("JWT_ALGORITHM")
-    def validate_jwt_algorithm(cls, v):
+    def validate_jwt_algorithm(cls: Any, v: str) -> str:
         """Ensure JWT algorithm is secure"""
         allowed = ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512"]
         if v not in allowed:
@@ -137,14 +137,14 @@ class Settings(BaseSettings):
     CORS_MAX_AGE: conint(gt=0) = Field(default=3600, description="Preflight cache time")
 
     @validator("CORS_ORIGINS", pre=True)
-    def parse_cors_origins(cls, v):
+    def parse_cors_origins(cls: Any, v: Any) -> list[str]:
         """Parse CORS origins from comma-separated string or list"""
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v
 
     @validator("CORS_ORIGINS")
-    def validate_cors_origins(cls, v, values):
+    def validate_cors_origins(cls: Any, v: list[str], values: dict[str, Any]) -> list[str]:
         """Warn if CORS is too permissive in production"""
         if values.get("ENVIRONMENT") == "production" and "*" in v:
             raise ValueError("CORS_ORIGINS should not contain '*' in production")
@@ -181,14 +181,14 @@ class Settings(BaseSettings):
     )
 
     @validator("ALLOWED_EXTENSIONS", pre=True)
-    def parse_allowed_extensions(cls, v):
+    def parse_allowed_extensions(cls: Any, v: Any) -> list[str]:
         """Parse allowed extensions from comma-separated string or list"""
         if isinstance(v, str):
             return [ext.strip() for ext in v.split(",")]
         return v
 
     @validator("ALLOWED_EXTENSIONS")
-    def validate_allowed_extensions(cls, v):
+    def validate_allowed_extensions(cls: Any, v: list[str]) -> list[str]:
         """Ensure extensions start with dot"""
         validated = []
         for ext in v:
@@ -230,7 +230,7 @@ class Settings(BaseSettings):
     SMTP_SSL: bool = Field(default=False, description="Use SSL")
 
     @validator("SMTP_FROM_EMAIL")
-    def validate_smtp_config(cls, v, values):
+    def validate_smtp_config(cls: Any, v: Optional[str], values: dict[str, Any]) -> Optional[str]:
         """If SMTP is enabled, ensure required fields are set"""
         if values.get("SMTP_ENABLED"):
             if not all([values.get("SMTP_HOST"), values.get("SMTP_USER"), v]):
@@ -292,7 +292,7 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: constr(min_length=8) = Field(default="changeme", description="Admin password")
 
     @validator("ADMIN_PASSWORD")
-    def validate_admin_password(cls, v, values):
+    def validate_admin_password(cls: Any, v: str, values: dict[str, Any]) -> str:
         """Warn about weak admin password in production"""
         if values.get("ENVIRONMENT") == "production":
             if v in ["admin", "password", "changeme", "admin123"]:
@@ -418,7 +418,7 @@ def generate_secure_key(length: int = 64) -> str:
     return secrets.token_urlsafe(length)
 
 
-def print_config_summary():
+def print_config_summary() -> None:
     """Print configuration summary (for debugging)"""
     s = settings
     print("\n" + "=" * 60)
