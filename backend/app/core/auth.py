@@ -5,7 +5,7 @@ Provides secure API key management and authentication
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from app.core.config import settings
@@ -49,7 +49,7 @@ class APIKey(Base):
     last_used_at = Column(DateTime, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     expires_at = Column(DateTime, nullable=True)  # Optional expiration
     revoked_at = Column(DateTime, nullable=True)
 
@@ -148,7 +148,7 @@ def create_api_key(
     # Calculate expiration
     expires_at = None
     if expires_in_days:
-        expires_at = datetime.utcnow() + timedelta(days=expires_in_days)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
 
     # Create model
     api_key = APIKey(
@@ -201,7 +201,7 @@ def validate_api_key(
         return None
 
     # Check expiration
-    if api_key.expires_at and api_key.expires_at < datetime.utcnow():
+    if api_key.expires_at and api_key.expires_at < datetime.now(timezone.utc):
         return None
 
     # Check IP restriction
@@ -212,7 +212,7 @@ def validate_api_key(
 
     # Update usage
     api_key.total_requests += 1
-    api_key.last_used_at = datetime.utcnow()
+    api_key.last_used_at = datetime.now(timezone.utc)
     db.commit()
 
     return api_key
@@ -235,7 +235,7 @@ def revoke_api_key(db: Session, key_id: int) -> bool:
 
     api_key.is_revoked = True
     api_key.is_active = False
-    api_key.revoked_at = datetime.utcnow()
+    api_key.revoked_at = datetime.now(timezone.utc)
     db.commit()
 
     return True

@@ -11,7 +11,7 @@ This module orchestrates the complete security analysis pipeline:
 
 import os
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
 
@@ -21,11 +21,8 @@ from .models import ScanRequest, ScanResult
 from .rules.base import Finding as RuleFinding
 from .rules.base import VulnerabilityRule
 
-# Cross-package import for SlitherWrapper (works from backend/ or project root)
-try:
-    from cli.slither_wrapper import SlitherWrapper
-except ImportError:
-    from backend.cli.slither_wrapper import SlitherWrapper
+# Import SlitherWrapper from the analysis package
+from .slither_wrapper import SlitherWrapper
 
 
 class AnalysisOrchestrator:
@@ -63,19 +60,19 @@ class AnalysisOrchestrator:
         Returns:
             ScanResult with all findings, scores, and summary
         """
-        print(f"🔍 Starting analysis for: {request.file_path}")
+        print(f"[SEARCH] Starting analysis for: {request.file_path}")
 
         # Step 1: Run Slither analysis
         slither_findings = self._run_slither_analysis(request)
-        print(f"   ✓ Slither found {len(slither_findings)} issues")
+        print(f"   [OK] Slither found {len(slither_findings)} issues")
 
         # Step 2: Run custom vulnerability rules
         rule_findings = self._run_rule_analysis(request)
-        print(f"   ✓ Rules found {len(rule_findings)} issues")
+        print(f"   [OK] Rules found {len(rule_findings)} issues")
 
         # Step 3: Merge and deduplicate findings
         all_findings = self._merge_and_deduplicate(slither_findings, rule_findings)
-        print(f"   ✓ Total unique findings: {len(all_findings)}")
+        print(f"   [OK] Total unique findings: {len(all_findings)}")
 
         # Step 4: Calculate severity breakdown
         severity_breakdown = self._calculate_severity_breakdown(all_findings)
@@ -98,10 +95,10 @@ class AnalysisOrchestrator:
             severity_breakdown=severity_breakdown,
             overall_score=overall_score,
             summary=summary,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
-        print(f"✅ Analysis complete: {summary}")
+        print(f"[OK] Analysis complete: {summary}")
         return result
 
     def _run_slither_analysis(self, request: ScanRequest) -> List[PydanticFinding]:
@@ -118,7 +115,7 @@ class AnalysisOrchestrator:
 
         # Check if Slither is available
         if not self.slither_wrapper.available:
-            print("   ⚠️  Slither not available, skipping static analysis")
+            print("   [WARNING]  Slither not available, skipping static analysis")
             return findings
 
         # Create temporary file for Slither analysis
@@ -141,7 +138,7 @@ class AnalysisOrchestrator:
                         findings.append(finding)
 
         except Exception as e:
-            print(f"   ⚠️  Slither analysis failed: {e}")
+            print(f"   [WARNING]  Slither analysis failed: {e}")
         finally:
             # Clean up temporary file
             try:
@@ -180,7 +177,7 @@ class AnalysisOrchestrator:
                     slither_obj = self.slither_wrapper.parse_contract(tmp_file_path)
                     ast = self.slither_wrapper.get_ast_nodes(slither_obj)
                 except Exception as e:
-                    print(f"   ⚠️  AST parsing failed: {e}")
+                    print(f"   [WARNING]  AST parsing failed: {e}")
 
             # Run each rule
             for rule in self.rules:
@@ -193,10 +190,10 @@ class AnalysisOrchestrator:
                         findings.append(pydantic_finding)
 
                 except Exception as e:
-                    print(f"   ⚠️  Rule {rule.rule_id} failed: {e}")
+                    print(f"   [WARNING]  Rule {rule.rule_id} failed: {e}")
 
         except Exception as e:
-            print(f"   ⚠️  Rule analysis setup failed: {e}")
+            print(f"   [WARNING]  Rule analysis setup failed: {e}")
         finally:
             # Clean up temporary file
             try:
@@ -382,19 +379,19 @@ class AnalysisOrchestrator:
             parts.append(f"{low} low")
 
         if not parts:
-            return "No vulnerabilities found - SAFE ✅"
+            return "No vulnerabilities found - SAFE [OK]"
 
         findings_text = ", ".join(parts)
 
         # Determine safety status
         if score >= 80:
-            status = "GOOD ✓"
+            status = "GOOD [OK]"
         elif score >= 60:
-            status = "MODERATE ⚠️"
+            status = "MODERATE [WARNING]"
         elif score >= 40:
-            status = "RISKY ⚠️⚠️"
+            status = "RISKY [WARNING][WARNING]"
         else:
-            status = "UNSAFE ❌"
+            status = "UNSAFE [ERROR]"
 
         return f"{findings_text} - {status}"
 

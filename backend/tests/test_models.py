@@ -1,5 +1,5 @@
 import pytest
-from backend.app.models.base import Base
+from app.models.base import Base
 
 @pytest.fixture(autouse=True)
 def clear_metadata():

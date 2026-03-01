@@ -3,7 +3,7 @@ BlockScope Scan Router - Security Upgraded
 Maintains existing scan logic while adding security features
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from typing import Optional
 
@@ -30,7 +30,7 @@ try:
     SECURITY_ENABLED = True
 except ImportError:
     SECURITY_ENABLED = False
-    print("⚠️  Security modules not available. Running without enhanced security.")
+    print("[WARNING]  Security modules not available. Running without enhanced security.")
     # Define dummy dependencies
     get_optional_api_key = lambda: None
     APIKey = type(None)
@@ -136,7 +136,7 @@ async def scan_contract(
             overall_score=scan_result.overall_score,
             summary=scan_result.summary,
             findings=findings_json,
-            scanned_at=datetime.utcnow(),
+            scanned_at=datetime.now(timezone.utc),
         )
 
         # 5. Store in database (your existing logic)
@@ -198,6 +198,9 @@ async def scan_contract_file(
 
         # Read file content
         source_code = await file.read()
+        
+        if not source_code.strip():
+            raise HTTPException(status_code=400, detail="File is empty or contains only whitespace")
 
         # Decode to string
         try:
@@ -242,7 +245,7 @@ async def scan_contract_file(
             overall_score=scan_result.overall_score,
             summary=scan_result.summary,
             findings=findings_json,
-            scanned_at=datetime.utcnow(),
+            scanned_at=datetime.now(timezone.utc),
         )
 
         # Store in database

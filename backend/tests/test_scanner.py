@@ -1,7 +1,7 @@
 import pytest
 
-from backend.analysis.scanner import SmartContractScanner
-from backend.analysis.rules.base import Finding, VulnerabilityRule
+from analysis.scanner import SmartContractScanner
+from analysis.rules.base import Finding, VulnerabilityRule
 
 
 # ----------------------------

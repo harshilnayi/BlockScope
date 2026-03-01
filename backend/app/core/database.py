@@ -4,8 +4,7 @@ Provides database connection, session management, and base model
 """
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Try to import settings, fall back to environment variables
 try:
@@ -35,16 +34,23 @@ except ImportError:
     DB_POOL_RECYCLE = int(os.getenv("DB_POOL_RECYCLE", "3600"))
     DB_ECHO = os.getenv("DB_ECHO", "False").lower() == "true"
 
-# Create SQLAlchemy engine
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=DB_POOL_SIZE,
-    max_overflow=DB_MAX_OVERFLOW,
-    pool_timeout=DB_POOL_TIMEOUT,
-    pool_recycle=DB_POOL_RECYCLE,
-    echo=DB_ECHO,
-    pool_pre_ping=True,  # Verify connections before using
-)
+# Create SQLAlchemy engine — SQLite needs different parameters than PostgreSQL
+if DATABASE_URL.startswith("sqlite://"):
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        echo=DB_ECHO,
+    )
+else:
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=DB_POOL_SIZE,
+        max_overflow=DB_MAX_OVERFLOW,
+        pool_timeout=DB_POOL_TIMEOUT,
+        pool_recycle=DB_POOL_RECYCLE,
+        echo=DB_ECHO,
+        pool_pre_ping=True,  # Verify connections before using
+    )
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -104,6 +110,6 @@ if __name__ == "__main__":
     # Test connection when run directly
     print("Testing database connection...")
     if test_connection():
-        print("✅ Database connection successful!")
+        print("[OK] Database connection successful!")
     else:
-        print("❌ Database connection failed!")
+        print("[ERROR] Database connection failed!")

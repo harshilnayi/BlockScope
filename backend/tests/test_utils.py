@@ -1,5 +1,5 @@
-from backend.analysis.orchestrator import AnalysisOrchestrator
-from backend.analysis.models import Finding
+from analysis.orchestrator import AnalysisOrchestrator
+from analysis.models import Finding
 
 
 def test_score_calculation_basic():

@@ -4,7 +4,7 @@ Data models for smart contract security scanning.
 This module defines the core data structures used for scan requests and results.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -22,8 +22,8 @@ class Finding(BaseModel):
     code_snippet: Optional[str] = Field(None, description="Relevant code snippet")
     recommendation: Optional[str] = Field(None, description="Suggested fix or mitigation")
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "title": "Reentrancy Vulnerability",
                 "severity": "critical",
@@ -33,6 +33,7 @@ class Finding(BaseModel):
                 "recommendation": "Use the checks-effects-interactions pattern",
             }
         }
+    }
 
 
 class ScanRequest(BaseModel):
@@ -48,14 +49,15 @@ class ScanRequest(BaseModel):
         ..., description="Path or identifier for the file being scanned, used for logging"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "source_code": "pragma solidity ^0.8.0;\ncontract MyToken { ... }",
                 "contract_name": "MyToken",
                 "file_path": "/contracts/MyToken.sol",
             }
         }
+    }
 
 
 class ScanResult(BaseModel):
@@ -81,11 +83,11 @@ class ScanResult(BaseModel):
         ..., description="One-line summary of scan results (e.g., '2 critical, 1 high - UNSAFE')"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="UTC timestamp when the scan was completed"
+        default_factory=lambda: datetime.now(timezone.utc), description="UTC timestamp when the scan was completed"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "contract_name": "MyToken",
                 "source_code": "pragma solidity ^0.8.0;\ncontract MyToken { ... }",
@@ -106,3 +108,4 @@ class ScanResult(BaseModel):
                 "timestamp": "2024-12-24T10:30:00Z",
             }
         }
+    }

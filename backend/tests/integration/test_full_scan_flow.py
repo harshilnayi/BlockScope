@@ -65,7 +65,7 @@ def test_full_scan_flow(client, name, filename, source, expected_status):
     start_time = time.time()
 
     response = client.post(
-        "/api/v1/scan",
+        "/api/v1/scan/file",
         files={"file": (filename, source, "text/plain")},
     )
 
@@ -89,10 +89,10 @@ def test_full_scan_flow(client, name, filename, source, expected_status):
     assert "overall_score" in data
     assert "summary" in data
     assert "severity_breakdown" in data
-    assert "vulnerabilities" in data
+    assert "findings" in data
 
     # -------- Data consistency --------
-    vuln_count = len(data["vulnerabilities"])
+    vuln_count = len(data["findings"])
     breakdown_total = sum(data["severity_breakdown"].values())
     assert vuln_count == breakdown_total
 
@@ -106,14 +106,14 @@ def test_full_scan_flow(client, name, filename, source, expected_status):
     assert stored_data["overall_score"] == data["overall_score"]
     assert stored_data["summary"] == data["summary"]
     assert stored_data["contract_name"] == filename.replace(".sol", "")
-    assert isinstance(stored_data["scan_timestamp"], str)
-    assert stored_data["vulnerabilities"] == data["vulnerabilities"]
-    assert isinstance(stored_data["scan_timestamp"], str)
+    assert isinstance(stored_data["timestamp"], str)
+    assert stored_data["findings"] == data["findings"]
+    assert isinstance(stored_data["timestamp"], str)
 
     # -------- Timestamp validation --------
-    scan_time = datetime.fromisoformat(stored_data["scan_timestamp"])
+    scan_time = datetime.fromisoformat(stored_data["timestamp"])
     assert scan_time.tzinfo is None or scan_time.tzinfo == timezone.utc
-    assert abs((datetime.utcnow() - scan_time).total_seconds()) < 60
+    assert abs((datetime.now(timezone.utc).replace(tzinfo=None) - scan_time.replace(tzinfo=None)).total_seconds()) < 60
 
     # -------- Performance benchmark --------
     assert duration < 2.0, f"Scan too slow: {duration}s"
