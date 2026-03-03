@@ -1,5 +1,7 @@
 import pytest
 
+
+@pytest.mark.integration
 def test_slither_execution_path(client, tmp_path):
     """
     Integration test for Slither execution path.
@@ -11,13 +13,11 @@ def test_slither_execution_path(client, tmp_path):
     """
 
     sol_file = tmp_path / "Test.sol"
-    sol_file.write_text(
-        "pragma solidity ^0.8.0; contract Test { uint256 public x; }"
-    )
+    sol_file.write_text("pragma solidity ^0.8.0; contract Test { uint256 public x; }")
 
     with open(sol_file, "rb") as f:
         res = client.post(
-            "/api/v1/scan",
+            "/api/v1/scan/file",
             files={"file": ("Test.sol", f, "text/plain")},
         )
 
@@ -29,11 +29,11 @@ def test_slither_execution_path(client, tmp_path):
         assert "overall_score" in data
         assert "summary" in data
         assert "severity_breakdown" in data
-        assert "vulnerabilities" in data
+        assert "findings" in data
 
         # Slither-specific expectation:
         # Even if no vulns found, structure must be correct
-        assert isinstance(data["vulnerabilities"], list)
+        assert isinstance(data["findings"], list)
         assert isinstance(data["severity_breakdown"], dict)
 
         # Explicitly document which path ran
@@ -52,3 +52,13 @@ def test_slither_execution_path(client, tmp_path):
     # -------- Anything else is a real failure --------
     else:
         pytest.fail(f"Unexpected status code: {res.status_code}")
+
+
+def test_scan_without_slither_does_not_crash(client, tmp_path):
+    sol = tmp_path / "NoSlither.sol"
+    sol.write_text("pragma solidity ^0.8.0; contract NoSlither {}")
+
+    with sol.open("rb") as f:
+        res = client.post("/api/v1/scan/file", files={"file": ("NoSlither.sol", f, "text/plain")})
+
+    assert res.status_code in (200, 400)

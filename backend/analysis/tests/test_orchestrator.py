@@ -12,7 +12,6 @@ Tests the complete analysis pipeline including:
 from unittest.mock import Mock, patch
 
 import pytest
-
 from analysis.models import Finding as PydanticFinding
 from analysis.models import ScanRequest, ScanResult
 from analysis.orchestrator import AnalysisOrchestrator

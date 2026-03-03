@@ -1,4 +1,7 @@
+import pytest
 
+
+@pytest.mark.integration
 def test_malformed_contract_recovery(client, tmp_path):
     """
     Error recovery test:
@@ -14,7 +17,7 @@ def test_malformed_contract_recovery(client, tmp_path):
 
     with open(sol_file, "rb") as f:
         res = client.post(
-            "/api/v1/scan",
+            "/api/v1/scan/file",
             files={"file": ("Broken.sol", f, "text/plain")},
         )
 
@@ -28,13 +31,29 @@ def test_malformed_contract_recovery(client, tmp_path):
         assert "overall_score" in data
         assert "summary" in data
         assert "severity_breakdown" in data
-        assert "vulnerabilities" in data
+        assert "findings" in data
 
         # Even broken contracts must not explode counts
-        assert isinstance(data["vulnerabilities"], list)
+        assert isinstance(data["findings"], list)
         assert isinstance(data["severity_breakdown"], dict)
 
     # -------- If rejected gracefully --------
     else:
         error = res.json()
         assert "detail" in error
+
+
+def test_malformed_contract_file_rejected(client, tmp_path):
+    sol = tmp_path / "Bad.sol"
+    sol.write_text("contract {")
+
+    with sol.open("rb") as f:
+        res = client.post("/api/v1/scan/file", files={"file": ("Bad.sol", f, "text/plain")})
+
+    assert res.status_code in (200, 400)
+
+
+@pytest.mark.integration
+def test_get_scan_not_found(client):
+    res = client.get("/api/v1/scans/999999")
+    assert res.status_code == 404
