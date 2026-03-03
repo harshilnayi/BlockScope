@@ -1,6 +1,6 @@
 import pytest
+from app.core.database import SessionLocal, engine
 from sqlalchemy import text
-from app.core.database import engine, SessionLocal
 
 
 def test_connection_pooling():

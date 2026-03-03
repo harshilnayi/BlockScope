@@ -1,19 +1,23 @@
 # backend/tests/test_endpoints.py
 
-import pytest
-from fastapi.testclient import TestClient
-from app.main import app
-  # Adjust import based on your app structure
-import tempfile
 import os
+
+# Adjust import based on your app structure
+import tempfile
+
+import pytest
+from app.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
+
 # Helper function to create a temporary file with given content and extension
 def create_temp_file(content: str, extension: str) -> str:
-    with tempfile.NamedTemporaryFile(mode='w', suffix=extension, delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=extension, delete=False) as f:
         f.write(content)
         return f.name
+
 
 # Test 1: Valid Solidity File Upload
 def test_valid_solidity_upload():
@@ -32,7 +36,9 @@ contract SimpleContract {
     file_path = create_temp_file(valid_sol_content, ".sol")
     try:
         with open(file_path, "rb") as f:
-            response = client.post("/api/v1/scan", files={"file": ("test.sol", f, "application/octet-stream")})
+            response = client.post(
+                "/api/v1/scan", files={"file": ("test.sol", f, "application/octet-stream")}
+            )
         assert response.status_code == 200
         data = response.json()
         assert "contract_name" in data
@@ -42,6 +48,7 @@ contract SimpleContract {
     finally:
         os.unlink(file_path)
 
+
 # Test 2: Missing File
 def test_missing_file():
     response = client.post("/api/v1/scan")
@@ -50,30 +57,36 @@ def test_missing_file():
     data = response.json()
     assert "detail" in data  # Assuming FastAPI error format
     assert "file" in data["detail"].lower() or "required" in str(data["detail"]).lower()
+
+
 # Test 3: Invalid File Type
-@pytest.mark.parametrize("extension,content", [
-    (".txt", "This is a text file"),
-    (".py", "print('Hello World')")
-])
+@pytest.mark.parametrize(
+    "extension,content", [(".txt", "This is a text file"), (".py", "print('Hello World')")]
+)
 def test_invalid_file_type(extension, content):
     file_path = create_temp_file(content, extension)
     try:
         with open(file_path, "rb") as f:
-            response = client.post("/api/v1/scan", files={"file": (f"test{extension}", f, "application/octet-stream")})
+            response = client.post(
+                "/api/v1/scan", files={"file": (f"test{extension}", f, "application/octet-stream")}
+            )
         assert response.status_code in [400, 422]
 
         data = response.json()
         assert "detail" in data
-        assert "sol" in str(data["detail"]).lower()   
+        assert "sol" in str(data["detail"]).lower()
     finally:
         os.unlink(file_path)
+
 
 # Test 4: Empty File
 def test_empty_file():
     file_path = create_temp_file("", ".sol")
     try:
         with open(file_path, "rb") as f:
-            response = client.post("/api/v1/scan", files={"file": ("empty.sol", f, "application/octet-stream")})
+            response = client.post(
+                "/api/v1/scan", files={"file": ("empty.sol", f, "application/octet-stream")}
+            )
         # Either 400 or 200 with "no code found" - adjust based on your implementation
         assert response.status_code in [200, 400]
         data = response.json()
@@ -88,6 +101,7 @@ def test_empty_file():
             assert "empty" in data["detail"].lower() or "no code" in data["detail"].lower()
     finally:
         os.unlink(file_path)
+
 
 # Test 5: Malformed Solidity Code
 def test_malformed_solidity_code():
@@ -104,7 +118,9 @@ contract BrokenContract {
     file_path = create_temp_file(malformed_sol_content, ".sol")
     try:
         with open(file_path, "rb") as f:
-            response = client.post("/api/v1/scan", files={"file": ("broken.sol", f, "application/octet-stream")})
+            response = client.post(
+                "/api/v1/scan", files={"file": ("broken.sol", f, "application/octet-stream")}
+            )
         # Should handle gracefully without crashing
         assert response.status_code in [200, 400]
         data = response.json()
@@ -119,6 +135,7 @@ contract BrokenContract {
     finally:
         os.unlink(file_path)
 
+
 # Test 6: Large File
 def test_large_file():
     # Create a large file (>10MB) with valid Solidity code
@@ -130,7 +147,9 @@ def test_large_file():
         file_size = os.path.getsize(file_path)
         assert file_size > 2 * 1024 * 1024  # >10MB
         with open(file_path, "rb") as f:
-            response = client.post("/api/v1/scan", files={"file": ("large.sol", f, "application/octet-stream")})
+            response = client.post(
+                "/api/v1/scan", files={"file": ("large.sol", f, "application/octet-stream")}
+            )
         # Either processes or rejects - adjust based on your design
         assert response.status_code in [200, 400, 413]  # 413 for payload too large
         if response.status_code == 200:
