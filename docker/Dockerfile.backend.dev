@@ -1,0 +1,29 @@
+# BlockScope Backend - Development Dockerfile
+# Hot-reload enabled for rapid development
+
+FROM python:3.11-slim
+
+LABEL org.opencontainers.image.description="BlockScope Backend (Development)"
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy and install requirements
+COPY backend/requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy backend code (will be overridden by volume mount in dev)
+COPY backend/ /app/
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+# Development: hot-reload with uvicorn
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -1,8 +1,73 @@
+# ===================================
+# BlockScope .dockerignore
+# ===================================
+# Reduce Docker build context size
+
+# Version control
 .git
 .gitignore
+
+# Dependencies (installed in container)
 node_modules
 frontend/node_modules
+backend/venv
+backend/.venv
+venv
+.venv
+
+# Build outputs
 frontend/dist
+frontend/build
 backend/__pycache__
-__pycache__
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# Environment files (secrets!)
+.env
+.env.*
+backend/.env.*
+frontend/.env
+!*.env.example
+
+# IDE and editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Testing and coverage
+htmlcov
+.coverage
+coverage.xml
+.pytest_cache
+.mypy_cache
+test.db
+backend/htmlcov
+
+# Documentation (not needed in image)
+*.md
+!README.md
+docs
+
+# CI/CD
+.github
+
+# Logs
 *.log
+logs
+backend/logs
+
+# Agent config
+.agent
+
+# Misc
+*.patch
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+.pre-commit-config.yaml
+pyproject.toml
+pytest.ini
+.coveragerc
