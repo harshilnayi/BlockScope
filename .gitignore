@@ -535,6 +535,7 @@ pnpm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+.agent/
 *.swp
 # Byte-compiled / optimized / DLL files
 __pycache__/
