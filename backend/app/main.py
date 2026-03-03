@@ -38,7 +38,7 @@ except ImportError:
 try:
     from app.routers.scan import router as scan_router
 except ImportError:
-    print("⚠️  Scan router not found. Please ensure app/routers/scan.py exists.")
+    print("[WARNING] Scan router not found. Please ensure app/routers/scan.py exists.")
     scan_router = None
 
 # Setup logging

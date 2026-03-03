@@ -49,7 +49,10 @@ def test_engine():
     # Cleanup test database file
     db_path = Path("./test.db")
     if db_path.exists():
-        db_path.unlink()
+        try:
+            db_path.unlink()
+        except PermissionError:
+            pass
 
 
 @pytest.fixture(scope="session")
@@ -249,6 +252,7 @@ def cleanup_uploads():
 
 
 # ==================== Markers ====================
+
 
 def pytest_configure(config):
     """Register custom markers."""

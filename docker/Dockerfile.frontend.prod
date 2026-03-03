@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Copy package files first (maximizes layer cache)
 COPY frontend/package*.json ./
-RUN npm ci --no-audit --no-fund
+RUN npm ci --legacy-peer-deps --no-audit --no-fund
 
 # Copy source and build
 COPY frontend/ .

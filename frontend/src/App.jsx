@@ -33,23 +33,23 @@ const apiClient = {
 const getIcon = (severity) => {
   const icons = {
     CRITICAL: <AlertCircle className="w-6 h-6" />,
-    HIGH:     <AlertTriangle className="w-6 h-6" />,
-    MEDIUM:   <AlertTriangle className="w-6 h-6" />,
-    LOW:      <Info className="w-6 h-6" />
+    HIGH: <AlertTriangle className="w-6 h-6" />,
+    MEDIUM: <AlertTriangle className="w-6 h-6" />,
+    LOW: <Info className="w-6 h-6" />
   };
   return icons[severity] ?? null;
 };
 
 const colorMap = {
   CRITICAL: 'border-red-300 bg-red-50 hover:bg-red-100',
-  HIGH:     'border-red-300 bg-red-50 hover:bg-red-100',
-  MEDIUM:   'border-yellow-300 bg-yellow-50 hover:bg-yellow-100',
-  LOW:      'border-green-300 bg-green-50 hover:bg-green-100'
+  HIGH: 'border-red-300 bg-red-50 hover:bg-red-100',
+  MEDIUM: 'border-yellow-300 bg-yellow-50 hover:bg-yellow-100',
+  LOW: 'border-green-300 bg-green-50 hover:bg-green-100'
 };
 
 const tourSteps = [
-  { target: '.upload-area',     content: 'Upload your Solidity contract file here or drag and drop.' },
-  { target: '.scan-button',     content: 'Click here to start the security scan.' },
+  { target: '.upload-area', content: 'Upload your Solidity contract file here or drag and drop.' },
+  { target: '.scan-button', content: 'Click here to start the security scan.' },
   { target: '.findings-section', content: 'Your scan results and vulnerability findings appear here.' },
 ];
 
@@ -85,10 +85,10 @@ const safeLocalStorageGet = (key, fallback = null) => {
 
 const SeverityBadge = ({ severity }) => {
   const configs = {
-    CRITICAL: { bg: 'from-red-500 to-red-600',       ring: 'ring-red-300',    glow: 'shadow-red-500/50' },
-    HIGH:     { bg: 'from-orange-500 to-orange-600', ring: 'ring-orange-300', glow: 'shadow-orange-500/50' },
-    MEDIUM:   { bg: 'from-yellow-500 to-yellow-600', ring: 'ring-yellow-300', glow: 'shadow-yellow-500/50' },
-    LOW:      { bg: 'from-blue-500 to-blue-600',     ring: 'ring-blue-300',   glow: 'shadow-blue-500/50' },
+    CRITICAL: { bg: 'from-red-500 to-red-600', ring: 'ring-red-300', glow: 'shadow-red-500/50' },
+    HIGH: { bg: 'from-orange-500 to-orange-600', ring: 'ring-orange-300', glow: 'shadow-orange-500/50' },
+    MEDIUM: { bg: 'from-yellow-500 to-yellow-600', ring: 'ring-yellow-300', glow: 'shadow-yellow-500/50' },
+    LOW: { bg: 'from-blue-500 to-blue-600', ring: 'ring-blue-300', glow: 'shadow-blue-500/50' },
   };
   const { bg, ring, glow } = configs[severity] || configs.LOW;
   return (
@@ -164,12 +164,11 @@ const FindingCard = ({ finding }) => {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4 flex-1">
-          <div className={`mt-1 ${
-            finding.severity === 'CRITICAL' ? 'text-red-600'
-            : finding.severity === 'HIGH'   ? 'text-orange-600'
-            : finding.severity === 'MEDIUM' ? 'text-yellow-600'
-            : 'text-blue-600'
-          }`}>
+          <div className={`mt-1 ${finding.severity === 'CRITICAL' ? 'text-red-600'
+            : finding.severity === 'HIGH' ? 'text-orange-600'
+              : finding.severity === 'MEDIUM' ? 'text-yellow-600'
+                : 'text-blue-600'
+            }`}>
             {getIcon(finding.severity)}
           </div>
           <div className="flex-1">
@@ -210,34 +209,23 @@ const FindingCard = ({ finding }) => {
   );
 };  // FIX 1b: was missing this closing }
 
-// FIX 2: ResultsList had an extra </div> in the empty-state return
-const ResultsList = ({ findings, fileName, loading, contractName }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterSeverity, setFilterSeverity] = useState('All');
-  const [showSuccess, setShowSuccess] = useState(false);
 
-  useEffect(() => {
-    if (!loading && findings && findings.length === 0) {
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-    }
-  }, [loading, findings]);
 
 // ─── ResultsList ─────────────────────────────────────────────────────────────
 
 const ResultsList = ({ findings, loading, contractName }) => {
-  const [searchTerm,      setSearchTerm]      = useState('');
-  const [filterSeverity,  setFilterSeverity]  = useState('All');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterSeverity, setFilterSeverity] = useState('All');
   const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
-  const [printError,      setPrintError]      = useState('');
+  const [printError, setPrintError] = useState('');
 
   const copyLinkTimerRef = useRef(null);
   useEffect(() => () => clearTimeout(copyLinkTimerRef.current), []);
 
   const critical = useMemo(() => findings.filter(f => f.severity === 'CRITICAL').length, [findings]);
-  const high     = useMemo(() => findings.filter(f => f.severity === 'HIGH').length,     [findings]);
-  const medium   = useMemo(() => findings.filter(f => f.severity === 'MEDIUM').length,   [findings]);
-  const low      = useMemo(() => findings.filter(f => f.severity === 'LOW').length,      [findings]);
+  const high = useMemo(() => findings.filter(f => f.severity === 'HIGH').length, [findings]);
+  const medium = useMemo(() => findings.filter(f => f.severity === 'MEDIUM').length, [findings]);
+  const low = useMemo(() => findings.filter(f => f.severity === 'LOW').length, [findings]);
 
   const filteredFindings = useMemo(() => findings.filter(f => {
     const matchesSearch =
@@ -279,7 +267,7 @@ const ResultsList = ({ findings, loading, contractName }) => {
       summary: { critical, high, medium, low, total: findings.length },
       date: new Date().toISOString()
     };
-    const bytes  = new TextEncoder().encode(JSON.stringify(reportData));
+    const bytes = new TextEncoder().encode(JSON.stringify(reportData));
     const binary = Array.from(bytes).map(b => String.fromCharCode(b)).join('');
     const shareableLink = `${window.location.origin}/share?data=${btoa(binary)}`;
     try {
@@ -376,9 +364,8 @@ const ResultsList = ({ findings, loading, contractName }) => {
             <button
               key={level}
               onClick={() => setFilterSeverity(level)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                filterSeverity === level ? 'bg-gray-800 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filterSeverity === level ? 'bg-gray-800 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
             >
               {level}
             </button>
@@ -389,10 +376,10 @@ const ResultsList = ({ findings, loading, contractName }) => {
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'CRITICAL', count: critical, from: 'from-red-500',    to: 'to-red-600',    muted: 'text-red-100' },
-          { label: 'HIGH',     count: high,     from: 'from-orange-500', to: 'to-orange-600', muted: 'text-orange-100' },
-          { label: 'MEDIUM',   count: medium,   from: 'from-yellow-500', to: 'to-yellow-600', muted: 'text-yellow-100' },
-          { label: 'LOW',      count: low,      from: 'from-blue-500',   to: 'to-blue-600',   muted: 'text-blue-100' },
+          { label: 'CRITICAL', count: critical, from: 'from-red-500', to: 'to-red-600', muted: 'text-red-100' },
+          { label: 'HIGH', count: high, from: 'from-orange-500', to: 'to-orange-600', muted: 'text-orange-100' },
+          { label: 'MEDIUM', count: medium, from: 'from-yellow-500', to: 'to-yellow-600', muted: 'text-yellow-100' },
+          { label: 'LOW', count: low, from: 'from-blue-500', to: 'to-blue-600', muted: 'text-blue-100' },
         ].map(({ label, count, from, to, muted }) => (
           <div key={label} className={`bg-gradient-to-br ${from} ${to} rounded-xl p-6 text-white shadow-xl hover:shadow-2xl transition-shadow`}>
             <p className={`${muted} text-sm font-semibold mb-2`}>{label}</p>
@@ -515,15 +502,15 @@ const ScanForm = ({
   onCodeChange, onNameChange,
   initialCode, initialName
 }) => {
-  const [contractCode,   setContractCode]   = useState(initialCode || '');
-  const [contractName,   setContractName]   = useState(initialName || '');
-  const [fileName,       setFileName]       = useState('');
-  const [fileSize,       setFileSize]       = useState(0);
-  const [filePreview,    setFilePreview]    = useState('');
-  const [error,          setError]          = useState('');
-  const [dragActive,     setDragActive]     = useState(false);
+  const [contractCode, setContractCode] = useState(initialCode || '');
+  const [contractName, setContractName] = useState(initialName || '');
+  const [fileName, setFileName] = useState('');
+  const [fileSize, setFileSize] = useState(0);
+  const [filePreview, setFilePreview] = useState('');
+  const [error, setError] = useState('');
+  const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadHistory,  setUploadHistory]  = useState([]);
+  const [uploadHistory, setUploadHistory] = useState([]);
 
   useEffect(() => {
     if (initialCode !== undefined) {
@@ -566,7 +553,7 @@ const ScanForm = ({
 
     const reader = new FileReader();
     reader.onloadstart = () => setUploadProgress(0);
-    reader.onprogress  = (e) => {
+    reader.onprogress = (e) => {
       if (e.lengthComputable) setUploadProgress((e.loaded / e.total) * 100);
     };
     reader.onload = (event) => {
@@ -639,11 +626,10 @@ const ScanForm = ({
       )}
 
       <div
-        className={`upload-area relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ${
-          dragActive
-            ? 'border-blue-500 bg-blue-50 shadow-xl scale-105 ring-4 ring-blue-200'
-            : 'border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50 hover:shadow-lg hover:border-blue-400'
-        }`}
+        className={`upload-area relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ${dragActive
+          ? 'border-blue-500 bg-blue-50 shadow-xl scale-105 ring-4 ring-blue-200'
+          : 'border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50 hover:shadow-lg hover:border-blue-400'
+          }`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
@@ -747,14 +733,14 @@ const ScanForm = ({
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [currentPage,   setCurrentPage]   = useState('scan');
-  const [findings,      setFindings]      = useState([]);
-  const [contractName,  setContractName]  = useState('');
-  const [contractCode,  setContractCode]  = useState('');
-  const [loading,       setLoading]       = useState(false);
-  const [error,         setError]         = useState('');
-  const [scanHistory,   setScanHistory]   = useState([]);
-  const [runTour,       setRunTour]       = useState(false);
+  const [currentPage, setCurrentPage] = useState('scan');
+  const [findings, setFindings] = useState([]);
+  const [contractName, setContractName] = useState('');
+  const [contractCode, setContractCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [scanHistory, setScanHistory] = useState([]);
+  const [runTour, setRunTour] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
   useEffect(() => {
@@ -785,22 +771,22 @@ export default function App() {
       setError('');
       setContractName(uploadedContractName);
 
-      const response    = await apiClient.scanContract(code, uploadedContractName);
+      const response = await apiClient.scanContract(code, uploadedContractName);
       const scanFindings = Array.isArray(response.findings) ? response.findings : [];
       setFindings(scanFindings);
 
       const newScan = {
         contractName: uploadedContractName,
         contractCode: code,
-        findings:     scanFindings,
+        findings: scanFindings,
         findingsSummary: {
           critical: scanFindings.filter(f => f.severity === 'CRITICAL').length,
-          high:     scanFindings.filter(f => f.severity === 'HIGH').length,
-          medium:   scanFindings.filter(f => f.severity === 'MEDIUM').length,
-          low:      scanFindings.filter(f => f.severity === 'LOW').length,
-          total:    scanFindings.length
+          high: scanFindings.filter(f => f.severity === 'HIGH').length,
+          medium: scanFindings.filter(f => f.severity === 'MEDIUM').length,
+          low: scanFindings.filter(f => f.severity === 'LOW').length,
+          total: scanFindings.length
         },
-        date:     new Date().toLocaleString(),
+        date: new Date().toLocaleString(),
         favorite: false
       };
       const updatedHistory = [newScan, ...scanHistory].slice(0, 10);
@@ -862,16 +848,7 @@ export default function App() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [currentPage, contractCode, contractName, handleScan, handleNewScan]);
 
-  const handleNewScan = () => {
-    try {
-      setCurrentPage('scan');
-      setFindings([]);
-      setContractName('');
-      setError('');
-    } catch (err) {
-      console.error('Error resetting form:', err);
-    }
-  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
