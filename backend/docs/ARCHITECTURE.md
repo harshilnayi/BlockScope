@@ -26,9 +26,11 @@ BlockScope is a distributed vulnerability scanning system with three main layers
 ## 📦 Components
 
 ### 1. Frontend Layer
+
 **Technology**: React 18 + TailwindCSS + Vite
 
 **Components**:
+
 - Dashboard (scan stats, recent history)
 - Upload page (drag-drop interface)
 - Scan results viewer (detailed findings)
@@ -37,6 +39,7 @@ BlockScope is a distributed vulnerability scanning system with three main layers
 - Admin panel
 
 **Key Features**:
+
 - Real-time scan progress
 - Interactive vulnerability details
 - Code snippet highlighting
@@ -44,6 +47,7 @@ BlockScope is a distributed vulnerability scanning system with three main layers
 - Scan history management
 
 ### 2. Backend API
+
 **Technology**: Python 3.11 + FastAPI + Uvicorn
 
 **Core Modules**:
@@ -77,6 +81,7 @@ backend/
 ```
 
 **Key Endpoints**:
+
 ```
 POST   /api/v1/scans              # Create new scan
 GET    /api/v1/scans/{id}         # Get scan results
@@ -86,9 +91,11 @@ POST   /api/v1/auth/login         # User login
 ```
 
 ### 3. Analysis Engine
+
 **Technology**: Python + Slither + Custom AST Parser
 
 **Workflow**:
+
 ```
 Input (Solidity Code)
     ↓
@@ -106,6 +113,7 @@ Output (Structured findings)
 ```
 
 **Detection Rules**:
+
 ```
 analysis/
 ├── rules/
@@ -123,19 +131,23 @@ analysis/
 ```
 
 ### 4. Machine Learning Pipeline
+
 **Technology**: scikit-learn + pandas + numpy
 
-**Purpose**: 
+**Purpose**:
+
 - Predict vulnerability severity
 - Detect false positives
 - Rank findings by confidence
 
 **Training Data**:
+
 - Real-world exploits (known vulnerable contracts)
 - Audit reports (OpenZeppelin, Trail of Bits, etc.)
 - Bug bounties (Immunefi, HackerOne data)
 
 **Model Pipeline**:
+
 ```
 [Training Data]
     ↓
@@ -151,12 +163,14 @@ analysis/
 ```
 
 **Features Used**:
+
 - Vulnerability type (reentrancy, overflow, etc.)
 - Contract complexity (LOC, function count)
 - Risk exposure (external calls, state changes)
 - Historical accuracy (similar contracts)
 
 ### 5. Database Layer
+
 **Technology**: PostgreSQL + Redis
 
 **Schema Overview**:
@@ -204,6 +218,7 @@ CREATE TABLE reports (
 ```
 
 **Redis Cache Keys**:
+
 - `scan:{id}:progress` - Real-time scan progress
 - `user:{id}:history` - User's recent scans
 - `ml:model:v1` - Cached ML model
@@ -212,6 +227,7 @@ CREATE TABLE reports (
 ### 6. Integration Layer
 
 **GitHub Actions**:
+
 ```yaml
 # Auto-scan on PR
 on: [pull_request]
@@ -221,6 +237,7 @@ on: [pull_request]
 ```
 
 **Slack Bot**:
+
 ```python
 @app.command("/scan")
 async def scan_command(client, body):
@@ -230,6 +247,7 @@ async def scan_command(client, body):
 ```
 
 **Etherscan Integration**:
+
 ```python
 # Fetch verified contract source
 # Auto-scan deployed contracts
@@ -239,6 +257,7 @@ async def scan_command(client, body):
 ## 🔄 Data Flow
 
 ### Scanning Flow
+
 ```
 1. User uploads contract
         ↓
@@ -259,6 +278,7 @@ async def scan_command(client, body):
 ```
 
 ### Authentication Flow
+
 ```
 1. User enters credentials
         ↓
@@ -276,16 +296,19 @@ async def scan_command(client, body):
 ## 🔐 Security Architecture
 
 ### Authentication
+
 - JWT tokens (RS256 signing)
 - Refresh tokens (short-lived)
 - Rate limiting (100 req/min per IP)
 
 ### Authorization
+
 - Role-based access control (RBAC)
 - User owns their scans (scans.user_id = auth.user_id)
 - Admin access to global stats
 
 ### Data Security
+
 - Contracts encrypted at rest (AES-256)
 - TLS/SSL for transport
 - No plain-text storage
@@ -293,12 +316,12 @@ async def scan_command(client, body):
 
 ## 📊 Performance Characteristics
 
-| Metric | Target | Method |
-|--------|--------|--------|
-| Scan Time | <2s | Parallel analysis + caching |
-| False Positive Rate | <5% | ML filtering |
-| Throughput | 100+ scans/min | Async processing + queue |
-| Uptime | 99.5% | Load balancing + monitoring |
+| Metric              | Target         | Method                      |
+| ------------------- | -------------- | --------------------------- |
+| Scan Time           | <2s            | Parallel analysis + caching |
+| False Positive Rate | <5%            | ML filtering                |
+| Throughput          | 100+ scans/min | Async processing + queue    |
+| Uptime              | 99.5%          | Load balancing + monitoring |
 
 ## 🚀 Deployment Architecture
 
@@ -330,6 +353,7 @@ async def scan_command(client, body):
 ```
 
 **Containerization**:
+
 ```dockerfile
 # backend/Dockerfile
 FROM python:3.11-slim
@@ -352,12 +376,14 @@ CMD ["npm", "start"]
 ## 📈 Scalability
 
 **Horizontal Scaling**:
+
 - Stateless API (can replicate)
 - Async task queue (Celery/RQ)
 - Database read replicas
 - CDN for static assets
 
 **Vertical Scaling**:
+
 - Multi-worker Uvicorn
 - Connection pooling
 - Query optimization
@@ -366,17 +392,20 @@ CMD ["npm", "start"]
 ## 🔍 Monitoring & Observability
 
 **Metrics**:
+
 - API response time
 - Scan completion rate
 - False positive rate
 - System resource usage
 
 **Logging**:
+
 - Structured JSON logs
 - Centralized aggregation
 - Error tracking (Sentry)
 
 **Alerting**:
+
 - Failed scans
 - API errors (5xx)
 - Database connection issues

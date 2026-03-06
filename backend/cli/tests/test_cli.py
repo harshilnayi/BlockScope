@@ -1,2 +1,2 @@
-﻿def test_cli_placeholder():
+def test_cli_placeholder():
     assert True

@@ -1,40 +1,37 @@
-"""Pydantic schemas for API request/response."""
-from typing import Dict, List, Optional
-from pydantic import BaseModel
-from datetime import datetime
+"""
+Pydantic schemas for scan API requests and responses.
+"""
 
-class FindingResponse(BaseModel):
-    """Finding response schema."""
-    rule_id: str
-    name: str
-    severity: str
-    description: str
-    line_number: int
-    code_snippet: str
-    remediation: str
-    confidence: float
+from datetime import datetime
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel
 
 
 class ScanRequest(BaseModel):
-    """Scan request schema."""
-    contract_name: str
+    """Schema for scan request body."""
+
     source_code: str
+    contract_name: Optional[str] = None
+
+
+class FindingResponse(BaseModel):
+    """Schema for a single finding in the response."""
+
+    title: str
+    description: str
+    severity: str
+    line_number: Optional[int] = None
 
 
 class ScanResponse(BaseModel):
-    """Scan response schema."""
+    """Schema for scan response — matches what routers/scan.py returns."""
+
     scan_id: int
     contract_name: str
     vulnerabilities_count: int
     severity_breakdown: Dict[str, int]
-    overall_score: float
+    overall_score: int
     summary: str
     findings: List[FindingResponse] = []
     timestamp: datetime
-class Config:
-        from_attributes = True
-        
-class HealthResponse(BaseModel):
-    """Health check response."""
-    status: str
-    version: str
