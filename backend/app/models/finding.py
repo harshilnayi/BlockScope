@@ -1,20 +1,15 @@
 """Database model for findings."""
+
 from datetime import datetime
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Text,
-    DateTime,
-    Float,
-    ForeignKey,
-)
+
+from app.models.base import Base
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
-from backend.app.models.base import Base
 
 
 class Finding(Base):
     """Finding / vulnerability database model."""
+
     __tablename__ = "findings"
 
     id = Column(Integer, primary_key=True, index=True)

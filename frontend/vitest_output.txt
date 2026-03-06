@@ -1,0 +1,24 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90mE:/BlockScope/frontend[39m
+
+ [2m[90mΓåô[39m[22m src/_tests_/ResultsDisplay.test.jsx [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [32mΓ£ô[39m src/_tests_/utils.test.js [2m([22m[2m4 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [31mΓ¥»[39m src/_tests_/App.test.jsx [2m([22m[2m0 test[22m[2m)[22m
+ [31mΓ¥»[39m src/_tests_/FileUpload.test.jsx [2m([22m[2m0 test[22m[2m)[22m
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ» Failed Suites 2 ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+
+ FAIL  src/_tests_/App.test.jsx [ src/_tests_/App.test.jsx ]
+ FAIL  src/_tests_/FileUpload.test.jsx [ src/_tests_/FileUpload.test.jsx ]
+Error: Cannot find module '@testing-library/dom'
+Require stack:
+- E:\BlockScope\frontend\node_modules\@testing-library\react\dist\pure.js
+ Γ¥» Object.<anonymous> node_modules/@testing-library/react/dist/pure.js:46:12
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1/2]ΓÄ»
+
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (4)[39m
+[2m      Tests [22m [1m[32m4 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (5)[39m
+[2m   Start at [22m 01:43:59
+[2m   Duration [22m 17.35s[2m (transform 732ms, setup 12.31s, import 343ms, tests 5ms, environment 52.90s)[22m

@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     @validator("ENVIRONMENT")
     def validate_environment(cls, v):
         """Ensure environment is one of allowed values"""
-        allowed = ["development", "staging", "production"]
+        allowed = ["development", "testing", "staging", "production"]
         if v not in allowed:
             raise ValueError(f"ENVIRONMENT must be one of {allowed}")
         return v
@@ -51,9 +51,7 @@ class Settings(BaseSettings):
     RELOAD: bool = Field(default=False, description="Auto-reload on code changes")
 
     # ==================== Database Configuration ====================
-    DATABASE_URL: PostgresDsn = Field(
-        ..., description="PostgreSQL connection string"  # Required field
-    )
+    DATABASE_URL: str = Field(..., description="Database connection string")  # Required field
     DB_POOL_SIZE: conint(gt=0) = Field(default=20, description="Database pool size")
     DB_MAX_OVERFLOW: conint(ge=0) = Field(default=10, description="Max overflow connections")
     DB_POOL_TIMEOUT: conint(gt=0) = Field(default=30, description="Pool timeout in seconds")
@@ -67,8 +65,8 @@ class Settings(BaseSettings):
         """Ensure database URL is properly formatted"""
         if not v:
             raise ValueError("DATABASE_URL is required")
-        if not v.startswith("postgresql://"):
-            raise ValueError("DATABASE_URL must be a PostgreSQL connection string")
+        if not v.startswith(("postgresql://", "sqlite:///")):
+            raise ValueError("DATABASE_URL must be a PostgreSQL or SQLite connection string")
         return v
 
     # ==================== Redis Configuration ====================

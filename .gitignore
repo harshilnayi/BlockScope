@@ -13,6 +13,11 @@
 .env.production
 .env.staging
 .env.test
+backend/.env.development
+backend/.env.production
+backend/.env
+frontend/.env
+frontend/.env.production
 
 # Environment variable files
 *.env
@@ -530,6 +535,7 @@ pnpm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+.agent/
 *.swp
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,0 +1,166 @@
+[
+  {
+    "sha": "2070ebcf4519d0c6ad7cdfb573ace1be22b7f54f",
+    "node_id": "C_kwDOQ4Kjp9oAKDIwNzBlYmNmNDUxOWQwYzZhZDdjZGZiNTczYWNlMWJlMjJiN2Y1NGY",
+    "commit": {
+      "author": {
+        "name": "bagman00",
+        "email": "bhandyuvaneta@gmail.com",
+        "date": "2026-03-02T05:15:06Z"
+      },
+      "committer": {
+        "name": "bagman00",
+        "email": "bhandyuvaneta@gmail.com",
+        "date": "2026-03-02T05:15:06Z"
+      },
+      "message": "docs: add complete documentation and developer onboarding guides",
+      "tree": {
+        "sha": "e66f76441ca4f2371d7fbbb53792c2c02c6d0163",
+        "url": "https://api.github.com/repos/harshilnayi/BlockScope/git/trees/e66f76441ca4f2371d7fbbb53792c2c02c6d0163"
+      },
+      "url": "https://api.github.com/repos/harshilnayi/BlockScope/git/commits/2070ebcf4519d0c6ad7cdfb573ace1be22b7f54f",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/harshilnayi/BlockScope/commits/2070ebcf4519d0c6ad7cdfb573ace1be22b7f54f",
+    "html_url": "https://github.com/harshilnayi/BlockScope/commit/2070ebcf4519d0c6ad7cdfb573ace1be22b7f54f",
+    "comments_url": "https://api.github.com/repos/harshilnayi/BlockScope/commits/2070ebcf4519d0c6ad7cdfb573ace1be22b7f54f/comments",
+    "author": {
+      "login": "bagman00",
+      "id": 251111541,
+      "node_id": "U_kgDODveodQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/251111541?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/bagman00",
+      "html_url": "https://github.com/bagman00",
+      "followers_url": "https://api.github.com/users/bagman00/followers",
+      "following_url": "https://api.github.com/users/bagman00/following{/other_user}",
+      "gists_url": "https://api.github.com/users/bagman00/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/bagman00/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/bagman00/subscriptions",
+      "organizations_url": "https://api.github.com/users/bagman00/orgs",
+      "repos_url": "https://api.github.com/users/bagman00/repos",
+      "events_url": "https://api.github.com/users/bagman00/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/bagman00/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "bagman00",
+      "id": 251111541,
+      "node_id": "U_kgDODveodQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/251111541?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/bagman00",
+      "html_url": "https://github.com/bagman00",
+      "followers_url": "https://api.github.com/users/bagman00/followers",
+      "following_url": "https://api.github.com/users/bagman00/following{/other_user}",
+      "gists_url": "https://api.github.com/users/bagman00/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/bagman00/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/bagman00/subscriptions",
+      "organizations_url": "https://api.github.com/users/bagman00/orgs",
+      "repos_url": "https://api.github.com/users/bagman00/repos",
+      "events_url": "https://api.github.com/users/bagman00/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/bagman00/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "00e26713b8b7e4b35199e23d212164cc89a9684e",
+        "url": "https://api.github.com/repos/harshilnayi/BlockScope/commits/00e26713b8b7e4b35199e23d212164cc89a9684e",
+        "html_url": "https://github.com/harshilnayi/BlockScope/commit/00e26713b8b7e4b35199e23d212164cc89a9684e"
+      }
+    ]
+  },
+  {
+    "sha": "8d1a8f366283283588c18f118e38fb3abda0dbc3",
+    "node_id": "C_kwDOQ4Kjp9oAKDhkMWE4ZjM2NjI4MzI4MzU4OGMxOGYxMThlMzhmYjNhYmRhMGRiYzM",
+    "commit": {
+      "author": {
+        "name": "bagman00",
+        "email": "bhandyuvaneta@gmail.com",
+        "date": "2026-03-03T10:00:51Z"
+      },
+      "committer": {
+        "name": "bagman00",
+        "email": "bhandyuvaneta@gmail.com",
+        "date": "2026-03-03T10:00:51Z"
+      },
+      "message": "docs: rewrite EXAMPLES.md with 6 distinct smart contract scan examples",
+      "tree": {
+        "sha": "efa9ec9e7ec0ac5426acfcf1937d512269ee13d9",
+        "url": "https://api.github.com/repos/harshilnayi/BlockScope/git/trees/efa9ec9e7ec0ac5426acfcf1937d512269ee13d9"
+      },
+      "url": "https://api.github.com/repos/harshilnayi/BlockScope/git/commits/8d1a8f366283283588c18f118e38fb3abda0dbc3",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/harshilnayi/BlockScope/commits/8d1a8f366283283588c18f118e38fb3abda0dbc3",
+    "html_url": "https://github.com/harshilnayi/BlockScope/commit/8d1a8f366283283588c18f118e38fb3abda0dbc3",
+    "comments_url": "https://api.github.com/repos/harshilnayi/BlockScope/commits/8d1a8f366283283588c18f118e38fb3abda0dbc3/comments",
+    "author": {
+      "login": "bagman00",
+      "id": 251111541,
+      "node_id": "U_kgDODveodQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/251111541?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/bagman00",
+      "html_url": "https://github.com/bagman00",
+      "followers_url": "https://api.github.com/users/bagman00/followers",
+      "following_url": "https://api.github.com/users/bagman00/following{/other_user}",
+      "gists_url": "https://api.github.com/users/bagman00/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/bagman00/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/bagman00/subscriptions",
+      "organizations_url": "https://api.github.com/users/bagman00/orgs",
+      "repos_url": "https://api.github.com/users/bagman00/repos",
+      "events_url": "https://api.github.com/users/bagman00/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/bagman00/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "bagman00",
+      "id": 251111541,
+      "node_id": "U_kgDODveodQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/251111541?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/bagman00",
+      "html_url": "https://github.com/bagman00",
+      "followers_url": "https://api.github.com/users/bagman00/followers",
+      "following_url": "https://api.github.com/users/bagman00/following{/other_user}",
+      "gists_url": "https://api.github.com/users/bagman00/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/bagman00/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/bagman00/subscriptions",
+      "organizations_url": "https://api.github.com/users/bagman00/orgs",
+      "repos_url": "https://api.github.com/users/bagman00/repos",
+      "events_url": "https://api.github.com/users/bagman00/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/bagman00/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "2070ebcf4519d0c6ad7cdfb573ace1be22b7f54f",
+        "url": "https://api.github.com/repos/harshilnayi/BlockScope/commits/2070ebcf4519d0c6ad7cdfb573ace1be22b7f54f",
+        "html_url": "https://github.com/harshilnayi/BlockScope/commit/2070ebcf4519d0c6ad7cdfb573ace1be22b7f54f"
+      }
+    ]
+  }
+]

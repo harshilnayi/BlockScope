@@ -1,7 +1,7 @@
 import pytest
 
-@pytest.mark.integration
 
+@pytest.mark.integration
 def test_scan_persisted_and_retrievable(client, tmp_path):
     # --- create temp solidity file ---
     sol_file = tmp_path / "A.sol"
@@ -9,10 +9,7 @@ def test_scan_persisted_and_retrievable(client, tmp_path):
 
     # --- call scan endpoint (multipart) ---
     with open(sol_file, "rb") as f:
-        res = client.post(
-            "/api/v1/scan",
-            files={"file": ("A.sol", f, "text/plain")}
-        )
+        res = client.post("/api/v1/scan/file", files={"file": ("A.sol", f, "text/plain")})
 
     assert res.status_code == 200
     data = res.json()
@@ -37,7 +34,7 @@ def test_scan_persisted_and_retrievable(client, tmp_path):
     assert stored["scan_id"] == scan_id
     assert isinstance(stored["severity_breakdown"], dict)
     assert isinstance(stored["overall_score"], (int, float))
-    assert isinstance(stored["scan_timestamp"], str)
+    assert isinstance(stored["timestamp"], str)
 
 
 def test_scan_list_contains_persisted_scan(client, tmp_path):
@@ -45,7 +42,7 @@ def test_scan_list_contains_persisted_scan(client, tmp_path):
     sol.write_text("pragma solidity ^0.8.0; contract ListDB {}")
 
     with sol.open("rb") as f:
-        res = client.post("/api/v1/scan", files={"file": ("ListDB.sol", f, "text/plain")})
+        res = client.post("/api/v1/scan/file", files={"file": ("ListDB.sol", f, "text/plain")})
 
     assert res.status_code == 200
 
