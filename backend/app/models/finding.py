@@ -67,7 +67,7 @@ class Finding(Base):
     # ──────────────────────────────────────────────
     # Relationships
     # ──────────────────────────────────────────────
-    scan = relationship("Scan", back_populates="finding_records")
+    scan = relationship("Scan")
 
     # ──────────────────────────────────────────────
     # Dunder methods

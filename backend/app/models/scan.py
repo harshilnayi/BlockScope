@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 
 from app.core.database import Base
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import relationship
 
 
 class Scan(Base):
@@ -34,5 +33,3 @@ class Scan(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    # Relationship to structured finding records (for normalized queries)
-    finding_records = relationship("Finding", back_populates="scan", cascade="all, delete-orphan")

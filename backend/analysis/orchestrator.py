@@ -436,7 +436,7 @@ class AnalysisOrchestrator:
         Returns:
             Extracted contract name, or ``"Unknown"`` if none found.
         """
-        match = re.search(r"contract\s+(\w+)", source_code)
+        match = re.search(r"\bcontract\s+(\w+)", source_code)
         return match.group(1) if match else "Unknown"
 
     # ──────────────────────────────────────────────

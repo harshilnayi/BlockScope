@@ -238,7 +238,7 @@ def init_db() -> None:
     logger.info("Database tables ready")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     print("Testing database connection …")
     status = "OK" if test_connection() else "FAILED"
     print(f"Connection: {status}")

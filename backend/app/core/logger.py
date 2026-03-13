@@ -105,15 +105,18 @@ class JSONFormatter(logging.Formatter):
                 "traceback": traceback.format_exception(*record.exc_info),
             }
 
-        # Attach any extra fields passed via `extra={"key": value}`
+        # Attach any extra fields passed via `extra={\"key\": value}`
+        # IMPORTANT: exclude ALL built-in LogRecord attributes to prevent
+        # KeyError: \"Attempt to overwrite '<attr>' in LogRecord\"
+        _RESERVED = frozenset({
+            "args", "asctime", "created", "exc_info", "exc_text",
+            "filename", "funcName", "id", "levelname", "levelno",
+            "lineno", "message", "module", "msecs", "msg", "name",
+            "pathname", "process", "processName", "relativeCreated",
+            "stack_info", "thread", "threadName", "taskName",
+        })
         for key, value in record.__dict__.items():
-            if key not in (
-                "args", "asctime", "created", "exc_info", "exc_text",
-                "filename", "funcName", "id", "levelname", "levelno",
-                "lineno", "module", "msecs", "message", "msg", "name",
-                "pathname", "process", "processName", "relativeCreated",
-                "stack_info", "thread", "threadName",
-            ):
+            if key not in _RESERVED and not key.startswith("_"):
                 payload[key] = value
 
         return json.dumps(payload, default=str)
