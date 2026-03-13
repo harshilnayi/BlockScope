@@ -200,7 +200,7 @@ def test_orchestrator_direct(sample_contract):
     assert isinstance(result.findings, list)
     assert isinstance(result.summary, str)
 
-    print(f"\n✅ Direct orchestrator test passed!")
+    print(f"\n[OK] Direct orchestrator test passed!")
     print(f"   Score: {result.overall_score}/100")
     print(f"   Summary: {result.summary}")
 
@@ -230,7 +230,7 @@ def test_orchestrator_with_multiple_contracts(sample_contract):
         assert isinstance(result, ScanResult)
         assert 0 <= result.overall_score <= 100
 
-    print(f"\n✅ Multiple contracts test passed!")
+    print(f"\n[OK] Multiple contracts test passed!")
     print(f"   Scanned {len(results)} contracts successfully")
 
 
@@ -256,7 +256,7 @@ def test_models_integration():
     assert finding.title == "Test Finding"
     assert finding.severity == "high"
 
-    print(f"\n✅ Models integration test passed!")
+    print(f"\n[OK] Models integration test passed!")
 
 
 def test_rules_integration():
@@ -288,7 +288,7 @@ def test_rules_integration():
     result = orchestrator.analyze(request)
     assert isinstance(result, ScanResult)
 
-    print(f"\n✅ Rules integration test passed!")
+    print(f"\n[OK] Rules integration test passed!")
 
 
 # ============================================================================

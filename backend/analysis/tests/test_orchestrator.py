@@ -232,7 +232,7 @@ def test_analyze_returns_scan_result(simple_contract, empty_rules, mock_slither_
     assert isinstance(result.summary, str), "Summary should be a string"
     assert len(result.summary) > 0, "Summary should not be empty"
 
-    print(f"\n✅ TEST 1 PASSED: analyze() returns ScanResult with findings, score, and summary")
+    print(f"\n[OK] TEST 1 PASSED: analyze() returns ScanResult with findings, score, and summary")
 
 
 # ============================================================================
@@ -267,7 +267,7 @@ def test_score_calculation_exact_math():
     # Assert: 100 - 10 (critical) - 5 (high) - 5 (high) = 80
     assert score == 80, f"Expected score 80, got {score}"
 
-    print(f"\n✅ TEST 2 PASSED: Score calculation correct (1 critical + 2 high = 80)")
+    print(f"\n[OK] TEST 2 PASSED: Score calculation correct (1 critical + 2 high = 80)")
 
 
 # ============================================================================
@@ -303,7 +303,7 @@ def test_severity_breakdown_populated():
     assert breakdown["low"] == 0, "Expected low=0"
     assert breakdown["info"] == 0, "Expected info=0"
 
-    print(f"\n✅ TEST 3 PASSED: Severity breakdown correct (critical=1, high=2)")
+    print(f"\n[OK] TEST 3 PASSED: Severity breakdown correct (critical=1, high=2)")
 
 
 # ============================================================================
@@ -452,12 +452,12 @@ def test_full_integration_workflow(vulnerable_contract, mock_slither_wrapper):
     # Timestamp exists
     assert result.timestamp is not None, "Timestamp should be set"
 
-    print(f"\n✅ Full integration test passed!")
+    print(f"\n[OK] Full integration test passed!")
     print(f"   Contract: {result.contract_name}")
     print(f"   Score: {result.overall_score}/100")
     print(f"   Findings: {result.vulnerabilities_count}")
     print(f"   Summary: {result.summary}")
     print(f"\n🎉 All Task 3 requirements verified!")
-    print(f"   ✅ TEST 1: analyze() returns ScanResult with findings, score, summary")
-    print(f"   ✅ TEST 2: Score calculation (1 critical + 2 high = 80)")
-    print(f"   ✅ TEST 3: Severity breakdown populated correctly")
+    print(f"   [OK] TEST 1: analyze() returns ScanResult with findings, score, summary")
+    print(f"   [OK] TEST 2: Score calculation (1 critical + 2 high = 80)")
+    print(f"   [OK] TEST 3: Severity breakdown populated correctly")
