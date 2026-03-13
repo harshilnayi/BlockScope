@@ -15,7 +15,7 @@ RUN npm run build
 # ---------- Stage 2: Nginx serve ----------
 FROM nginx:stable-alpine
 
-LABEL org.opencontainers.image.source="https://github.com/harshilnayi/BlockScope"
+LABEL org.opencontainers.image.source="https://github.com/shanaysoni/BlockScope"
 LABEL org.opencontainers.image.description="BlockScope Frontend"
 
 # Remove default nginx config

@@ -17,7 +17,7 @@ RUN pip install --upgrade pip && \
 # ---------- Stage 2: Runtime ----------
 FROM python:3.11-slim
 
-LABEL org.opencontainers.image.source="https://github.com/harshilnayi/BlockScope"
+LABEL org.opencontainers.image.source="https://github.com/shanaysoni/BlockScope"
 LABEL org.opencontainers.image.description="BlockScope Backend API"
 
 WORKDIR /app

@@ -36,4 +36,3 @@ class Scan(Base):
 
     # Relationship to structured finding records (for normalized queries)
     finding_records = relationship("Finding", back_populates="scan", cascade="all, delete-orphan")
-
