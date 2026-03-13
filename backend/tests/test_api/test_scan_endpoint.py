@@ -1,10 +1,11 @@
-from urllib import response
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch
 from io import BytesIO
+from unittest.mock import patch
+from urllib import response
 
-from backend.app.main import app
+import pytest
+from app.main import app
+from fastapi.testclient import TestClient
+
 from backend.analysis.models import ScanResult
 
 client = TestClient(app)
@@ -25,7 +26,7 @@ def test_scan_endpoint_success():
             "info": 0,
         },
         overall_score=100,
-        summary="No vulnerabilities found - SAFE [OK]",
+        summary="No vulnerabilities found - SAFE ✅",
     )
 
     with patch(
@@ -52,10 +53,11 @@ def test_scan_endpoint_success():
 
 
 def test_scan_endpoint_validation_error():
-    # Missing file → API explicitly raises 400
+    # Missing file → API explicitly raises 400 or 422
     response = client.post(SCAN_URL)
 
     assert response.status_code in [400, 422]
+    assert "detail" in response.json()
 
 
 def test_scan_endpoint_internal_error():
@@ -84,7 +86,6 @@ def test_scan_endpoint_internal_error():
 
     assert body["overall_score"] == 100
     assert body["summary"].startswith("No vulnerabilities")
-
 
 
 def test_successful_scan(client):
@@ -116,7 +117,9 @@ def test_invalid_file_type(client):
         files={"file": ("bad.txt", b"hello", "text/plain")},
     )
 
-    assert response.status_code in [200, 400, 422]
+    assert response.status_code == 400
+    assert response.status_code == 400
+    assert "invalid file type" in response.text.lower()
 
 
 def test_malformed_contract(client):
@@ -147,6 +150,7 @@ def test_empty_file(client):
 
     assert response.status_code in [200, 400]
 
+
 def test_response_format(client):
     response = client.post(
         "/api/v1/scan/file",
@@ -156,16 +160,17 @@ def test_response_format(client):
     data = response.json()
 
     required_keys = {
-    "scan_id",
-    "contract_name",
-    "findings",
-    "severity_breakdown",
-    "overall_score",
-    "summary",
-    "timestamp",
-}
+        "scan_id",
+        "contract_name",
+        "findings",
+        "severity_breakdown",
+        "overall_score",
+        "summary",
+        "timestamp",
+    }
 
     assert required_keys.issubset(data.keys())
+
 
 def test_scan_status_updates(client):
     response = client.post(
@@ -182,7 +187,8 @@ def test_scan_status_updates(client):
     data = get_resp.json()
     assert data["scan_id"] == scan_id
     assert "summary" in data
-    
+
+
 def test_concurrent_scans(client):
     responses = []
 
@@ -196,4 +202,3 @@ def test_concurrent_scans(client):
     ids = [r.json()["scan_id"] for r in responses]
     assert len(ids) == len(set(ids))
     assert len(set(ids)) == 3
-

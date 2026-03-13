@@ -1,0 +1,20 @@
+[run]
+source = backend/app
+omit =
+    backend/tests/*
+    backend/venv/*
+    backend/app/core/__pycache__/*
+    */__pycache__/*
+    */migrations/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if __name__ == .__main__
+    raise NotImplementedError
+    pass
+    except ImportError
+show_missing = True
+precision = 2
+fail_under = 0

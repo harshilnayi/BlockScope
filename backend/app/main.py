@@ -32,13 +32,13 @@ except ImportError:
 
     settings = Settings()
     SECURITY_ENABLED = False
-    print("[WARNING]  Running without security modules. Run setup to enable full security.")
+    print("⚠️  Running without security modules. Run setup to enable full security.")
 
 # Import routers
 try:
     from app.routers.scan import router as scan_router
 except ImportError:
-    print("[WARNING]  Scan router not found. Please ensure app/routers/scan.py exists.")
+    print("[WARNING] Scan router not found. Please ensure app/routers/scan.py exists.")
     scan_router = None
 
 # Setup logging
@@ -49,14 +49,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ===================================
-# LIFESPAN
+# CREATE FASTAPI APP
 # ===================================
-from contextlib import asynccontextmanager
+app = FastAPI(
+    title=settings.APP_NAME,
+    description="Smart Contract Vulnerability Scanner with Security Features",
+    version=settings.APP_VERSION,
+    docs_url="/docs" if settings.ENABLE_API_DOCS else None,
+    redoc_url="/redoc" if settings.ENABLE_API_DOCS else None,
+)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Initialize application on startup and cleanup on shutdown"""
-    logger.info(f"[START] Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+
+# ===================================
+# STARTUP EVENTS
+# ===================================
+@app.on_event("startup")
+async def startup_event():
+    """Initialize application on startup"""
+    logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
 
     # Print config summary in debug mode
     if settings.DEBUG and SECURITY_ENABLED:
@@ -71,24 +81,26 @@ async def lifespan(app: FastAPI):
             from app.core.rate_limit import rate_limit_redis
 
             await rate_limit_redis.connect()
-            logger.info("[OK] Redis connected for rate limiting")
+            logger.info("✅ Redis connected for rate limiting")
         except Exception as e:
-            logger.warning(f"[WARNING]  Redis connection failed: {e}")
+            logger.warning(f"⚠️  Redis connection failed: {e}")
 
     # Test database connection
     try:
         from app.core.database import engine
 
         with engine.connect() as conn:
-            logger.info("[OK] Database connected")
+            logger.info("✅ Database connected")
     except Exception as e:
-        logger.warning(f"[WARNING]  Database connection failed: {e}")
+        logger.warning(f"⚠️  Database connection failed: {e}")
 
-    logger.info("[OK] Application startup complete")
-    
-    yield
-    
-    logger.info("[BYE] Shutting down application")
+    logger.info("✅ Application startup complete")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown"""
+    logger.info("👋 Shutting down application")
 
     # Disconnect Redis if connected
     if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
@@ -96,24 +108,11 @@ async def lifespan(app: FastAPI):
             from app.core.rate_limit import rate_limit_redis
 
             await rate_limit_redis.disconnect()
-            logger.info("[OK] Redis disconnected")
+            logger.info("✅ Redis disconnected")
         except Exception:
             pass
 
-    logger.info("[OK] Application shutdown complete")
-
-
-# ===================================
-# CREATE FASTAPI APP
-# ===================================
-app = FastAPI(
-    title=settings.APP_NAME,
-    description="Smart Contract Vulnerability Scanner with Security Features",
-    version=settings.APP_VERSION,
-    docs_url="/docs" if settings.ENABLE_API_DOCS else None,
-    redoc_url="/redoc" if settings.ENABLE_API_DOCS else None,
-    lifespan=lifespan,
-)
+    logger.info("✅ Application shutdown complete")
 
 
 # ===================================
@@ -126,9 +125,9 @@ if SECURITY_ENABLED:
         from app.core.security import setup_security_middleware
 
         setup_security_middleware(app)
-        logger.info("[OK] Security middleware enabled")
+        logger.info("✅ Security middleware enabled")
     except ImportError:
-        logger.warning("[WARNING]  Security middleware not available")
+        logger.warning("⚠️  Security middleware not available")
 
         # Fallback basic CORS
         app.add_middleware(
@@ -142,25 +141,27 @@ else:
     # Basic CORS for development
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # [WARNING] Development only!
+        allow_origins=["*"],  # ⚠️ Development only!
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    logger.warning("[WARNING]  Running with permissive CORS (development mode)")
+    logger.warning("⚠️  Running with permissive CORS (development mode)")
 
 # Add rate limiting middleware if available
 if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
     try:
-        from app.core.rate_limit import RateLimitMiddleware
+        from app.core.rate_limit import RateLimitMiddleware, rate_limit_redis
 
-        app.add_middleware(
-            RateLimitMiddleware, enabled=True
-        )
+        @app.on_event("startup")
+        async def add_rate_limit():
+            app.add_middleware(
+                RateLimitMiddleware, redis_client=rate_limit_redis.redis, enabled=True
+            )
 
-        logger.info("[OK] Rate limiting enabled")
+        logger.info("✅ Rate limiting enabled")
     except ImportError:
-        logger.warning("[WARNING]  Rate limiting not available")
+        logger.warning("⚠️  Rate limiting not available")
 
 # ===================================
 # EXCEPTION HANDLERS
@@ -296,9 +297,9 @@ async def api_info():
 # Include scan router
 if scan_router:
     app.include_router(scan_router, prefix="/api/v1", tags=["Scanning"])
-    logger.info("[OK] Scan router registered at /api/v1/scan")
+    logger.info("✅ Scan router registered at /api/v1/scan")
 else:
-    logger.error("[ERROR] Scan router not available")
+    logger.error("❌ Scan router not available")
 
 # ===================================
 # DEVELOPMENT HELPERS

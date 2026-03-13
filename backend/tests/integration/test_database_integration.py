@@ -1,7 +1,7 @@
 import pytest
 
-@pytest.mark.integration
 
+@pytest.mark.integration
 def test_scan_persisted_and_retrievable(client, tmp_path):
     # --- create temp solidity file ---
     sol_file = tmp_path / "A.sol"
@@ -9,10 +9,7 @@ def test_scan_persisted_and_retrievable(client, tmp_path):
 
     # --- call scan endpoint (multipart) ---
     with open(sol_file, "rb") as f:
-        res = client.post(
-            "/api/v1/scan/file",
-            files={"file": ("A.sol", f, "text/plain")}
-        )
+        res = client.post("/api/v1/scan/file", files={"file": ("A.sol", f, "text/plain")})
 
     assert res.status_code == 200
     data = res.json()

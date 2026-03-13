@@ -11,7 +11,7 @@ This module orchestrates the complete security analysis pipeline:
 
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 
@@ -20,8 +20,6 @@ from .models import Finding as PydanticFinding
 from .models import ScanRequest, ScanResult
 from .rules.base import Finding as RuleFinding
 from .rules.base import VulnerabilityRule
-
-# Import SlitherWrapper from the analysis package
 from .slither_wrapper import SlitherWrapper
 
 
@@ -60,7 +58,7 @@ class AnalysisOrchestrator:
         Returns:
             ScanResult with all findings, scores, and summary
         """
-        print(f"[SEARCH] Starting analysis for: {request.file_path}")
+        print(f"[SCAN] Starting analysis for: {request.file_path}")
 
         # Step 1: Run Slither analysis
         slither_findings = self._run_slither_analysis(request)
@@ -95,10 +93,10 @@ class AnalysisOrchestrator:
             severity_breakdown=severity_breakdown,
             overall_score=overall_score,
             summary=summary,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.utcnow(),
         )
 
-        print(f"[OK] Analysis complete: {summary}")
+        print(f"[DONE] Analysis complete: {summary}")
         return result
 
     def _run_slither_analysis(self, request: ScanRequest) -> List[PydanticFinding]:
@@ -115,7 +113,7 @@ class AnalysisOrchestrator:
 
         # Check if Slither is available
         if not self.slither_wrapper.available:
-            print("   [WARNING]  Slither not available, skipping static analysis")
+            print("   [WARNING] Slither not available, skipping static analysis")
             return findings
 
         # Create temporary file for Slither analysis
@@ -138,7 +136,7 @@ class AnalysisOrchestrator:
                         findings.append(finding)
 
         except Exception as e:
-            print(f"   [WARNING]  Slither analysis failed: {e}")
+            print(f"   [WARNING] Slither analysis failed: {e}")
         finally:
             # Clean up temporary file
             try:
@@ -177,7 +175,7 @@ class AnalysisOrchestrator:
                     slither_obj = self.slither_wrapper.parse_contract(tmp_file_path)
                     ast = self.slither_wrapper.get_ast_nodes(slither_obj)
                 except Exception as e:
-                    print(f"   [WARNING]  AST parsing failed: {e}")
+                    print(f"   [WARNING] AST parsing failed: {e}")
 
             # Run each rule
             for rule in self.rules:
@@ -190,10 +188,10 @@ class AnalysisOrchestrator:
                         findings.append(pydantic_finding)
 
                 except Exception as e:
-                    print(f"   [WARNING]  Rule {rule.rule_id} failed: {e}")
+                    print(f"   [WARNING] Rule {rule.rule_id} failed: {e}")
 
         except Exception as e:
-            print(f"   [WARNING]  Rule analysis setup failed: {e}")
+            print(f"   [WARNING] Rule analysis setup failed: {e}")
         finally:
             # Clean up temporary file
             try:
@@ -389,9 +387,9 @@ class AnalysisOrchestrator:
         elif score >= 60:
             status = "MODERATE [WARNING]"
         elif score >= 40:
-            status = "RISKY [WARNING][WARNING]"
+            status = "RISKY [WARNING]"
         else:
-            status = "UNSAFE [ERROR]"
+            status = "UNSAFE [FAIL]"
 
         return f"{findings_text} - {status}"
 

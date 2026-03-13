@@ -32,6 +32,23 @@
           - '--extend-ignore=E203,W503,E402,E722,E501,F541,E731,F401,F841,F811'
         exclude: '^(backend/.*tests/.*|backend/tests/.*|verify_exports\.py)$'
 
+  # Security: Detect hardcoded secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: '(\.env\.example|\.env\.production|package-lock\.json)$'
+
+  # Security: Python security linter
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: ['-c', 'pyproject.toml', '-ll']
+        additional_dependencies: ['bandit[toml]']
+        exclude: '^(backend/tests/|tests/)'
+
 default_language_version:
   python: python
 

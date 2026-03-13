@@ -12,12 +12,11 @@ Tests the complete analysis pipeline including:
 from unittest.mock import Mock, patch
 
 import pytest
-
-from backend.analysis.models import Finding as PydanticFinding
-from backend.analysis.models import ScanRequest, ScanResult
-from backend.analysis.orchestrator import AnalysisOrchestrator
-from backend.analysis.rules.base import Finding as RuleFinding
-from backend.analysis.rules.base import Severity, VulnerabilityRule
+from analysis.models import Finding as PydanticFinding
+from analysis.models import ScanRequest, ScanResult
+from analysis.orchestrator import AnalysisOrchestrator
+from analysis.rules.base import Finding as RuleFinding
+from analysis.rules.base import Severity, VulnerabilityRule
 
 # ============================================================================
 # FIXTURES

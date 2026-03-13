@@ -9,8 +9,7 @@ import subprocess
 import sys
 
 import pytest
-
-from backend.analysis import AnalysisOrchestrator, ScanRequest, ScanResult
+from analysis import AnalysisOrchestrator, ScanRequest, ScanResult
 
 # ============================================================================
 # FIXTURES
@@ -140,7 +139,7 @@ def test_fastapi_list_scans():
     This is a placeholder for when Jiten implements the /scans endpoint.
     """
     # For now, just verify imports work
-    from backend.analysis import AnalysisOrchestrator
+    from analysis import AnalysisOrchestrator
 
     orchestrator = AnalysisOrchestrator(rules=[])
     assert orchestrator is not None
@@ -159,7 +158,7 @@ def test_fastapi_get_scan_by_id():
     # For now, just verify the models exist
     # Verify ScanResult has timestamp (used as ID)
 
-    from backend.analysis import ScanResult
+    from analysis import ScanResult
 
     assert hasattr(ScanResult, "__annotations__")
     assert "timestamp" in ScanResult.__annotations__
@@ -242,7 +241,7 @@ def test_orchestrator_with_multiple_contracts(sample_contract):
 
 def test_models_integration():
     """Test that all models work together correctly."""
-    from backend.analysis.models import Finding
+    from analysis.models import Finding
 
     # Create a finding
     finding = Finding(
@@ -262,7 +261,7 @@ def test_models_integration():
 
 def test_rules_integration():
     """Test that rules can be integrated with orchestrator."""
-    from backend.analysis.rules.base import Severity, VulnerabilityRule
+    from analysis.rules.base import Severity, VulnerabilityRule
 
     # Create a test rule
     class TestRule(VulnerabilityRule):

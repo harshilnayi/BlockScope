@@ -1,7 +1,7 @@
 import pytest
 
-@pytest.mark.integration
 
+@pytest.mark.integration
 def test_malformed_contract_recovery(client, tmp_path):
     """
     Error recovery test:
@@ -42,6 +42,7 @@ def test_malformed_contract_recovery(client, tmp_path):
         error = res.json()
         assert "detail" in error
 
+
 def test_malformed_contract_file_rejected(client, tmp_path):
     sol = tmp_path / "Bad.sol"
     sol.write_text("contract {")
@@ -51,8 +52,8 @@ def test_malformed_contract_file_rejected(client, tmp_path):
 
     assert res.status_code in (200, 400)
 
+
 @pytest.mark.integration
 def test_get_scan_not_found(client):
     res = client.get("/api/v1/scans/999999")
     assert res.status_code == 404
-

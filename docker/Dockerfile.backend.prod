@@ -3,40 +3,46 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /build
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y gcc
+# Install build dependencies (single layer)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc && \
+    rm -rf /var/lib/apt/lists/*
 
+# Copy and install requirements first (maximizes layer cache)
 COPY backend/requirements.txt .
-
-RUN pip install --upgrade pip
-RUN pip install --prefix=/install -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 
 # ---------- Stage 2: Runtime ----------
 FROM python:3.11-slim
 
+LABEL org.opencontainers.image.source="https://github.com/harshilnayi/BlockScope"
+LABEL org.opencontainers.image.description="BlockScope Backend API"
+
 WORKDIR /app
 
-# Install curl for healthcheck
+# Install runtime dependencies only (single layer)
 RUN apt-get update && \
-    apt-get install -y curl && \
+    apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy installed packages
+# Copy installed Python packages from builder
 COPY --from=builder /install /usr/local
 
 # Copy backend code
-COPY backend /app
+COPY backend/ /app/
 
-# Security: create non-root user
-RUN useradd -m appuser
-RUN mkdir -p /app/logs && chown -R appuser:appuser /app
+# Security: create non-root user and set permissions
+RUN useradd -m -r appuser && \
+    mkdir -p /app/logs /app/uploads && \
+    chown -R appuser:appuser /app
 
 USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

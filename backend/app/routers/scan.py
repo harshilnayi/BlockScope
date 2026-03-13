@@ -3,23 +3,21 @@ BlockScope Scan Router - Security Upgraded
 Maintains existing scan logic while adding security features
 """
 
-from datetime import datetime, timezone
-
+from datetime import datetime
 from typing import Optional
 
 # Import existing modules (keep your structure)
 from analysis import AnalysisOrchestrator
 from analysis import ScanRequest as AnalysisScanRequest
+from analysis.models import ScanRequest as EngineScanRequest
+from analysis.orchestrator import AnalysisOrchestrator
 from app.core.database import get_db
+from app.core.logger import logger
+from app.models import Scan
 from app.models.scan import Scan
 from app.schemas.scan_schema import ScanRequest, ScanResponse
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
-from backend.app.core.logger import logger
-from backend.analysis.orchestrator import AnalysisOrchestrator
-from backend.analysis.models import ScanRequest as EngineScanRequest
-from backend.app.core.database import get_db
-from backend.app.models import Scan
 
 # Import security modules (new - gracefully handle if not available)
 try:
@@ -30,7 +28,7 @@ try:
     SECURITY_ENABLED = True
 except ImportError:
     SECURITY_ENABLED = False
-    print("[WARNING]  Security modules not available. Running without enhanced security.")
+    print("⚠️  Security modules not available. Running without enhanced security.")
     # Define dummy dependencies
     get_optional_api_key = lambda: None
     APIKey = type(None)
@@ -136,7 +134,7 @@ async def scan_contract(
             overall_score=scan_result.overall_score,
             summary=scan_result.summary,
             findings=findings_json,
-            scanned_at=datetime.now(timezone.utc),
+            scanned_at=datetime.utcnow(),
         )
 
         # 5. Store in database (your existing logic)
@@ -198,9 +196,6 @@ async def scan_contract_file(
 
         # Read file content
         source_code = await file.read()
-        
-        if not source_code.strip():
-            raise HTTPException(status_code=400, detail="File is empty or contains only whitespace")
 
         # Decode to string
         try:
@@ -245,7 +240,7 @@ async def scan_contract_file(
             overall_score=scan_result.overall_score,
             summary=scan_result.summary,
             findings=findings_json,
-            scanned_at=datetime.now(timezone.utc),
+            scanned_at=datetime.utcnow(),
         )
 
         # Store in database

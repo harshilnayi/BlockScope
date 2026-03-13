@@ -5,6 +5,7 @@ import os
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
 
+
 def setup_logger():
     logger = logging.getLogger("blockscope")
     logger.setLevel(logging.INFO)
@@ -28,5 +29,6 @@ def setup_logger():
         logger.addHandler(file_handler)
 
     return logger
+
 
 logger = setup_logger()

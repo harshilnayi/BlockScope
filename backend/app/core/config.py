@@ -7,7 +7,7 @@ import secrets
 from functools import lru_cache
 from typing import List, Optional
 
-from pydantic import EmailStr, Field, HttpUrl, RedisDsn, conint, constr, field_validator
+from pydantic import EmailStr, Field, HttpUrl, PostgresDsn, RedisDsn, conint, constr, validator
 from pydantic_settings import BaseSettings
 
 
@@ -16,13 +16,6 @@ class Settings(BaseSettings):
     Application settings with environment variable validation.
     All settings are loaded from environment variables.
     """
-
-    model_config = {
-        "env_file": (".env.test", ".env.development", ".env"),
-        "env_file_encoding": "utf-8",
-        "case_sensitive": True,
-        "extra": "ignore",
-    }
 
     # ==================== Application Settings ====================
     APP_NAME: str = Field(default="BlockScope", description="Application name")
@@ -35,17 +28,15 @@ class Settings(BaseSettings):
         default="INFO", description="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL"
     )
 
-    @field_validator("ENVIRONMENT")
-    @classmethod
+    @validator("ENVIRONMENT")
     def validate_environment(cls, v):
         """Ensure environment is one of allowed values"""
-        allowed = ["development", "staging", "production", "testing"]
+        allowed = ["development", "testing", "staging", "production"]
         if v not in allowed:
             raise ValueError(f"ENVIRONMENT must be one of {allowed}")
         return v
 
-    @field_validator("LOG_LEVEL")
-    @classmethod
+    @validator("LOG_LEVEL")
     def validate_log_level(cls, v):
         """Ensure log level is valid"""
         allowed = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -60,9 +51,7 @@ class Settings(BaseSettings):
     RELOAD: bool = Field(default=False, description="Auto-reload on code changes")
 
     # ==================== Database Configuration ====================
-    DATABASE_URL: str = Field(
-        ..., description="Database connection string (PostgreSQL or SQLite for testing)"
-    )
+    DATABASE_URL: str = Field(..., description="Database connection string")  # Required field
     DB_POOL_SIZE: conint(gt=0) = Field(default=20, description="Database pool size")
     DB_MAX_OVERFLOW: conint(ge=0) = Field(default=10, description="Max overflow connections")
     DB_POOL_TIMEOUT: conint(gt=0) = Field(default=30, description="Pool timeout in seconds")
@@ -71,14 +60,12 @@ class Settings(BaseSettings):
     )
     DB_ECHO: bool = Field(default=False, description="Log SQL statements")
 
-    @field_validator("DATABASE_URL")
-    @classmethod
+    @validator("DATABASE_URL", pre=True)
     def validate_database_url(cls, v):
         """Ensure database URL is properly formatted"""
         if not v:
             raise ValueError("DATABASE_URL is required")
-        # Allow both PostgreSQL and SQLite (for testing)
-        if not (v.startswith("postgresql://") or v.startswith("sqlite://")):
+        if not v.startswith(("postgresql://", "sqlite:///")):
             raise ValueError("DATABASE_URL must be a PostgreSQL or SQLite connection string")
         return v
 
@@ -92,10 +79,10 @@ class Settings(BaseSettings):
     REDIS_SOCKET_CONNECT_TIMEOUT: conint(gt=0) = Field(default=5, description="Connection timeout")
 
     # ==================== Security Configuration ====================
-    SECRET_KEY: constr(min_length=16) = Field(
+    SECRET_KEY: constr(min_length=32) = Field(
         ..., description="Secret key for signing tokens"  # Required field
     )
-    JWT_SECRET_KEY: constr(min_length=16) = Field(
+    JWT_SECRET_KEY: constr(min_length=32) = Field(
         ..., description="JWT secret key"  # Required field
     )
     JWT_ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
@@ -106,14 +93,9 @@ class Settings(BaseSettings):
         default=30, description="Refresh token expiration in days"
     )
 
-    @field_validator("SECRET_KEY", "JWT_SECRET_KEY")
-    @classmethod
-    def validate_secret_keys(cls, v, info):
-        """Ensure secret keys are strong (relaxed in testing)"""
-        env = info.data.get("ENVIRONMENT", "development")
-        if env == "testing":
-            # Allow shorter keys in testing
-            return v
+    @validator("SECRET_KEY", "JWT_SECRET_KEY")
+    def validate_secret_keys(cls, v):
+        """Ensure secret keys are strong"""
         if v in [
             "changeme",
             "secret",
@@ -125,8 +107,7 @@ class Settings(BaseSettings):
             raise ValueError("Secret key must be at least 32 characters long")
         return v
 
-    @field_validator("JWT_ALGORITHM")
-    @classmethod
+    @validator("JWT_ALGORITHM")
     def validate_jwt_algorithm(cls, v):
         """Ensure JWT algorithm is secure"""
         allowed = ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512"]
@@ -153,19 +134,17 @@ class Settings(BaseSettings):
     CORS_ALLOW_HEADERS: List[str] = Field(default=["*"], description="Allowed headers")
     CORS_MAX_AGE: conint(gt=0) = Field(default=3600, description="Preflight cache time")
 
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
+    @validator("CORS_ORIGINS", pre=True)
     def parse_cors_origins(cls, v):
         """Parse CORS origins from comma-separated string or list"""
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v
 
-    @field_validator("CORS_ORIGINS")
-    @classmethod
-    def validate_cors_origins(cls, v, info):
+    @validator("CORS_ORIGINS")
+    def validate_cors_origins(cls, v, values):
         """Warn if CORS is too permissive in production"""
-        if info.data.get("ENVIRONMENT") == "production" and "*" in v:
+        if values.get("ENVIRONMENT") == "production" and "*" in v:
             raise ValueError("CORS_ORIGINS should not contain '*' in production")
         return v
 
@@ -199,16 +178,14 @@ class Settings(BaseSettings):
         default=255, description="Maximum filename length"
     )
 
-    @field_validator("ALLOWED_EXTENSIONS", mode="before")
-    @classmethod
+    @validator("ALLOWED_EXTENSIONS", pre=True)
     def parse_allowed_extensions(cls, v):
         """Parse allowed extensions from comma-separated string or list"""
         if isinstance(v, str):
             return [ext.strip() for ext in v.split(",")]
         return v
 
-    @field_validator("ALLOWED_EXTENSIONS")
-    @classmethod
+    @validator("ALLOWED_EXTENSIONS")
     def validate_allowed_extensions(cls, v):
         """Ensure extensions start with dot"""
         validated = []
@@ -250,12 +227,11 @@ class Settings(BaseSettings):
     SMTP_TLS: bool = Field(default=True, description="Use TLS")
     SMTP_SSL: bool = Field(default=False, description="Use SSL")
 
-    @field_validator("SMTP_FROM_EMAIL")
-    @classmethod
-    def validate_smtp_config(cls, v, info):
+    @validator("SMTP_FROM_EMAIL")
+    def validate_smtp_config(cls, v, values):
         """If SMTP is enabled, ensure required fields are set"""
-        if info.data.get("SMTP_ENABLED"):
-            if not all([info.data.get("SMTP_HOST"), info.data.get("SMTP_USER"), v]):
+        if values.get("SMTP_ENABLED"):
+            if not all([values.get("SMTP_HOST"), values.get("SMTP_USER"), v]):
                 raise ValueError(
                     "SMTP_HOST, SMTP_USER, and SMTP_FROM_EMAIL required when SMTP_ENABLED=True"
                 )
@@ -313,11 +289,10 @@ class Settings(BaseSettings):
     ADMIN_USERNAME: str = Field(default="admin", description="Admin username")
     ADMIN_PASSWORD: constr(min_length=8) = Field(default="changeme", description="Admin password")
 
-    @field_validator("ADMIN_PASSWORD")
-    @classmethod
-    def validate_admin_password(cls, v, info):
+    @validator("ADMIN_PASSWORD")
+    def validate_admin_password(cls, v, values):
         """Warn about weak admin password in production"""
-        if info.data.get("ENVIRONMENT") == "production":
+        if values.get("ENVIRONMENT") == "production":
             if v in ["admin", "password", "changeme", "admin123"]:
                 raise ValueError("ADMIN_PASSWORD must be changed from default in production!")
         return v
@@ -340,7 +315,18 @@ class Settings(BaseSettings):
 
     # ==================== Testing ====================
     TESTING: bool = Field(default=False, description="Testing mode")
-    TEST_DATABASE_URL: Optional[str] = Field(default=None, description="Test database URL")
+    TEST_DATABASE_URL: Optional[PostgresDsn] = Field(default=None, description="Test database URL")
+
+    # ==================== Config Class ====================
+    class Config:
+        """Pydantic config"""
+
+        env_file = (".env.development", ".env")
+        env_file_encoding = "utf-8"
+        case_sensitive = True
+
+        # Allow extra fields from environment
+        extra = "ignore"
 
     # ==================== Computed Properties ====================
     @property
@@ -401,9 +387,12 @@ def get_settings() -> Settings:
         settings.validate_all()
         return settings
     except Exception as e:
-        print(f"[ERROR] Configuration Error: {str(e)}")
+        print(f"❌ Configuration Error: {str(e)}")
         print("\nPlease check your environment variables.")
         print("Required variables: DATABASE_URL, SECRET_KEY, JWT_SECRET_KEY")
+        print(
+            f"\nCurrent ENVIRONMENT: {Settings().ENVIRONMENT if hasattr(Settings(), 'ENVIRONMENT') else 'unknown'}"
+        )
         raise
 
 
@@ -454,7 +443,7 @@ if __name__ == "__main__":
     # Test configuration loading
     try:
         settings = get_settings()
-        print("[OK] Configuration loaded successfully!")
+        print("✅ Configuration loaded successfully!")
         print_config_summary()
     except Exception as e:
-        print(f"[ERROR] Configuration failed: {e}")
+        print(f"❌ Configuration failed: {e}")

@@ -1,22 +1,16 @@
 """Database model for findings."""
-from datetime import datetime, timezone
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Text,
-    DateTime,
-    Float,
-    ForeignKey,
-)
+
+from datetime import datetime
+
+from app.models.base import Base
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
-from app.core.database import Base
 
 
 class Finding(Base):
     """Finding / vulnerability database model."""
+
     __tablename__ = "findings"
-    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, index=True)
     scan_id = Column(Integer, ForeignKey("scans.id"), nullable=False)
@@ -30,6 +24,6 @@ class Finding(Base):
     remediation = Column(Text, nullable=False)
     confidence = Column(Float, default=1.0)
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    scan = relationship("Scan", back_populates="finding_records")
+    scan = relationship("Scan", back_populates="findings")

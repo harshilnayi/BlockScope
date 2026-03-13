@@ -1,0 +1,10 @@
+[tool.bandit]
+exclude_dirs = ["backend/tests", "tests", "venv", ".venv"]
+skips = ["B101"]  # Skip assert_used check (used in tests)
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+profile = "black"
+line_length = 100

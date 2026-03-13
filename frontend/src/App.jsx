@@ -81,6 +81,28 @@ const safeLocalStorageGet = (key, fallback = null) => {
   catch (e) { console.error('localStorage read failed:', e); return fallback; }
 };
 
+const copyToClipboard = async (text) => {
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (_) {}
+  }
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return ok;
+  } catch (_) {
+    return false;
+  }
+};
+
 // ─── SeverityBadge ───────────────────────────────────────────────────────────
 
 const SeverityBadge = ({ severity }) => {
@@ -101,13 +123,42 @@ const SeverityBadge = ({ severity }) => {
 // ─── HelpModal ───────────────────────────────────────────────────────────────
 
 const HelpModal = ({ isOpen, onClose }) => {
+  const closeRef = useRef(null);
+
+  // Close on Escape key + auto-focus close button for accessibility
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKeyDown);
+    const focusTimer = setTimeout(() => closeRef.current?.focus(), 0);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      clearTimeout(focusTimer);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
+    // Backdrop click closes modal
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {/* role="dialog" + aria-modal prevent screen readers from navigating behind it */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="help-modal-title"
+        className="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto"
+      >
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Help & Examples</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">&#x2715;</button>
+          <h2 id="help-modal-title" className="text-2xl font-bold">Help & Examples</h2>
+          <button
+            ref={closeRef}
+            onClick={onClose}
+            aria-label="Close help dialog"
+            className="text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+          >&#x2715;</button>
         </div>
         <div className="space-y-4">
           <div>
@@ -142,25 +193,26 @@ contract SafeContract {
 
 const FindingCard = ({ finding }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [copySuccess, setCopySuccess] = useState(false);
+  const [copySuccess, setCopySuccess] = useState('idle');
   const copyTimerRef = useRef(null);
   useEffect(() => () => clearTimeout(copyTimerRef.current), []);
 
   const handleCopyToClipboard = async (e) => {
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(finding, null, 2));
-      setCopySuccess(true);
-      copyTimerRef.current = setTimeout(() => setCopySuccess(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy: ', err);
-    }
+  e.stopPropagation();
+  const ok = await copyToClipboard(JSON.stringify(finding, null, 2));
+  setCopyState(ok ? 'success' : 'error');
+  copyTimerRef.current = setTimeout(() => setCopyState('idle'), 2000);
   };
 
   return (
     <div
-      className={`border-l-4 rounded-lg p-6 transition-all duration-300 cursor-pointer hover:scale-105 ${colorMap[finding.severity] ?? 'border-gray-300 bg-gray-50 hover:bg-gray-100'}`}
+      role="button"
+      tabIndex={0}
+      aria-expanded={isExpanded}
+      aria-label={`${finding.severity} finding: ${finding.title}. Click to ${isExpanded ? 'collapse' : 'expand'}.`}
+      className={`border-l-4 rounded-lg p-6 transition-all duration-300 cursor-pointer hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${colorMap[finding.severity] ?? 'border-gray-300 bg-gray-50 hover:bg-gray-100'}`}
       onClick={() => setIsExpanded(!isExpanded)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsExpanded(!isExpanded); } }}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4 flex-1">
@@ -197,38 +249,27 @@ const FindingCard = ({ finding }) => {
           <SeverityBadge severity={finding.severity} />
           <button
             onClick={handleCopyToClipboard}
-            className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+            className="p-2 text-gray-500 hover:text-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
             title="Copy finding to clipboard"
+            aria-label={copyState === 'success' ? 'Copied!' : copyState === 'error' ? 'Copy failed' : 'Copy finding to clipboard'}
+            aria-live="polite"
           >
-            {copySuccess
-              ? <CheckCircle className="w-5 h-5 text-green-600" />
-              : <Copy className="w-5 h-5" />}
+            {copyState === 'success' && <CheckCircle className="w-5 h-5 text-green-600" />}
+            {copyState === 'error'   && <AlertCircle className="w-5 h-5 text-red-500" />}
+            {copyState === 'idle'    && <Copy className="w-5 h-5" />}
           </button>
         </div>
       </div>
-    </div>  // FIX 1a: was missing this closing </div>
+    </div>
   );
-};  // FIX 1b: was missing this closing }
-
-// FIX 2: ResultsList had an extra </div> in the empty-state return
-const ResultsList = ({ findings, fileName, loading, contractName }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterSeverity, setFilterSeverity] = useState('All');
-  const [showSuccess, setShowSuccess] = useState(false);
-
-  useEffect(() => {
-    if (!loading && findings && findings.length === 0) {
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-    }
-  }, [loading, findings]);
+};
 
 // ─── ResultsList ─────────────────────────────────────────────────────────────
 
 const ResultsList = ({ findings, loading, contractName }) => {
   const [searchTerm,      setSearchTerm]      = useState('');
   const [filterSeverity,  setFilterSeverity]  = useState('All');
-  const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
+  const [copyLinkSuccess, setCopyLinkSuccess] = useState('idle');
   const [printError,      setPrintError]      = useState('');
 
   const copyLinkTimerRef = useRef(null);
@@ -247,48 +288,21 @@ const ResultsList = ({ findings, loading, contractName }) => {
     return matchesSearch && matchesFilter;
   }), [findings, searchTerm, filterSeverity]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="relative">
-          <Loader className="w-16 h-16 text-blue-600 animate-spin" />
-          <Zap className="w-8 h-8 text-yellow-500 absolute top-4 right-4 animate-pulse" />
-        </div>
-        <p className="text-gray-600 mt-6 text-lg font-semibold">Scanning with Semgrep...</p>
-        <p className="text-gray-500 mt-2">Analyzing security vulnerabilities</p>
-      </div>
-    );
-  }
-
-  if (!findings || findings.length === 0) {
-    return (
-      <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-2xl p-10 text-center shadow-lg">
-        <div className="flex justify-center mb-4">
-          <CheckCircle className="w-16 h-16 text-green-600 animate-bounce" />
-        </div>
-        <p className="text-green-900 font-bold text-2xl">Perfect! No Vulnerabilities Found</p>
-        <p className="text-green-700 text-lg mt-2">Your smart contract passed all security checks</p>
-      </div>
-      // FIX 2: removed the extra </div> that was here
-    );
-  }
-
   const handleCopyShareableLink = async () => {
     const reportData = {
       contractName, findings,
       summary: { critical, high, medium, low, total: findings.length },
       date: new Date().toISOString()
     };
-    const bytes  = new TextEncoder().encode(JSON.stringify(reportData));
-    const binary = Array.from(bytes).map(b => String.fromCharCode(b)).join('');
-    const shareableLink = `${window.location.origin}/share?data=${btoa(binary)}`;
-    try {
-      await navigator.clipboard.writeText(shareableLink);
-      setCopyLinkSuccess(true);
-      copyLinkTimerRef.current = setTimeout(() => setCopyLinkSuccess(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy link: ', err);
-    }
+    // Use TextEncoder + Uint8Array → btoa for full Unicode safety
+    const json    = JSON.stringify(reportData);
+    const bytes   = new TextEncoder().encode(json);
+    const binStr  = Array.from(bytes, (b) => String.fromCodePoint(b)).join('');
+    const encoded = btoa(binStr);
+    const shareableLink = `${window.location.origin}/share?data=${encodeURIComponent(encoded)}`;
+    const ok = await copyToClipboard(shareableLink);
+    setCopyLinkState(ok ? 'success' : 'error');
+    copyLinkTimerRef.current = setTimeout(() => setCopyLinkState('idle'), 2000);
   };
 
   const handlePrint = () => {
@@ -314,31 +328,63 @@ const ResultsList = ({ findings, loading, contractName }) => {
 
   const handleDownloadMarkdown = () => {
     const md = `# Security Scan Report for ${contractName}\n\n## Summary\n- **Total**: ${findings.length}\n- **Critical**: ${critical}\n- **High**: ${high}\n- **Medium**: ${medium}\n- **Low**: ${low}\n\n## Findings\n\n${findings.map((f, i) => `### ${i + 1}. ${f.title}\n- **Severity**: ${f.severity}\n- **Description**: ${f.description}\n${f.line_number ? `- **Line**: ${f.line_number}\n` : ''}${f.code ? `\`\`\`solidity\n${f.code}\n\`\`\`\n` : ''}`).join('\n')}\n\n---\n*Generated on ${new Date().toLocaleString()}*\n`;
-    const a = document.createElement('a');
-    a.href = 'data:text/markdown;charset=utf-8,' + encodeURIComponent(md);
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
     a.download = `${contractName}_security_report.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleDownloadJSON = () => {
-    const a = document.createElement('a');
-    a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(
-      JSON.stringify({ contractName, findings, summary: { critical, high, medium, low, total: findings.length } }, null, 2)
+    const blob = new Blob(
+      [JSON.stringify({ contractName, findings, summary: { critical, high, medium, low, total: findings.length } }, null, 2)],
+      { type: 'application/json;charset=utf-8' }
     );
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
     a.download = `${contractName}_security_report.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
+
+  if (loading) {
+    return (
+      <div role="status" aria-live="polite" className="flex flex-col items-center justify-center py-20">
+        <div className="relative">
+          <Loader className="w-16 h-16 text-blue-600 animate-spin" aria-hidden="true" />
+          <Zap className="w-8 h-8 text-yellow-500 absolute top-4 right-4 animate-pulse" aria-hidden="true" />
+        </div>
+        <p className="text-gray-600 mt-6 text-lg font-semibold">Scanning with Semgrep...</p>
+        <p className="text-gray-500 mt-2">Analyzing security vulnerabilities</p>
+      </div>
+    );
+  }
+
+  if (!findings || findings.length === 0) {
+    return (
+      <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-2xl p-10 text-center shadow-lg">
+        <div className="flex justify-center mb-4">
+          <CheckCircle className="w-16 h-16 text-green-600 animate-bounce" aria-hidden="true" />
+        </div>
+        <p className="text-green-900 font-bold text-2xl">Perfect! No Vulnerabilities Found</p>
+        <p className="text-green-700 text-lg mt-2">Your smart contract passed all security checks</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 findings-section">
       <Tooltip id="finding-tooltip" />
 
       {printError && (
-        <div className="bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded-lg text-sm">
+        <div role="alert" className="bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded-lg text-sm">
           {printError}
         </div>
       )}
@@ -350,6 +396,7 @@ const ResultsList = ({ findings, loading, contractName }) => {
           <input
             type="text"
             placeholder="Search vulnerabilities..."
+            aria-label="Search vulnerabilities by title or description"
             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -357,8 +404,15 @@ const ResultsList = ({ findings, loading, contractName }) => {
         </div>
 
         <div className="flex gap-2 w-full md:w-auto flex-wrap items-center">
-          <button onClick={handleCopyShareableLink} className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50" title="Copy Shareable Link">
-            {copyLinkSuccess ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Copy className="w-5 h-5 text-gray-600" />}
+          <button
+            onClick={handleCopyShareableLink}
+            className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            title="Copy Shareable Link"
+            aria-label={copyLinkState === 'success' ? 'Link copied!' : copyLinkState === 'error' ? 'Copy failed' : 'Copy shareable link'}
+          >
+            {copyLinkState === 'success' && <CheckCircle className="w-5 h-5 text-green-600" />}
+            {copyLinkState === 'error'   && <AlertCircle className="w-5 h-5 text-red-500" />}
+            {copyLinkState === 'idle'    && <Copy className="w-5 h-5 text-gray-600" />}
           </button>
 
           <button onClick={handleDownloadMarkdown} className="flex items-center gap-1 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-sm text-gray-600" title="Download Markdown Report">
@@ -376,6 +430,7 @@ const ResultsList = ({ findings, loading, contractName }) => {
             <button
               key={level}
               onClick={() => setFilterSeverity(level)}
+              aria-pressed={filterSeverity === level}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 filterSeverity === level ? 'bg-gray-800 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
@@ -387,7 +442,7 @@ const ResultsList = ({ findings, loading, contractName }) => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'CRITICAL', count: critical, from: 'from-red-500',    to: 'to-red-600',    muted: 'text-red-100' },
           { label: 'HIGH',     count: high,     from: 'from-orange-500', to: 'to-orange-600', muted: 'text-orange-100' },
@@ -427,7 +482,7 @@ const ResultsList = ({ findings, loading, contractName }) => {
         <div className="space-y-4">
           {filteredFindings.map((finding, idx) => (
             <FindingCard
-              key={idx}
+              key={`${finding.severity}-${finding.title}-${finding.line_number ?? idx}`}
               finding={finding}
             />
           ))}
@@ -458,7 +513,9 @@ const ScanHistory = ({ scanHistory, onRescan, onToggleFavorite, onLoadFromHistor
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setShowDropdown(prev => !prev)}
-        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
+        aria-haspopup="true"
+        aria-expanded={showDropdown}
+        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
       >
         <History className="w-4 h-4" />
         Scan History
@@ -469,7 +526,7 @@ const ScanHistory = ({ scanHistory, onRescan, onToggleFavorite, onLoadFromHistor
             <p className="p-4 text-gray-500">No scan history yet.</p>
           ) : (
             scanHistory.map((scan, idx) => (
-              <div key={`${scan.contractName}-${scan.date}-${idx}`} className="p-4 border-b border-gray-100 hover:bg-gray-50">
+              <div key={`${scan.contractName}-${scan.date}`} className="p-4 border-b border-gray-100 hover:bg-gray-50">
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0 mr-2">
                     <p className="font-semibold text-gray-900 truncate">{scan.contractName}</p>
@@ -487,12 +544,14 @@ const ScanHistory = ({ scanHistory, onRescan, onToggleFavorite, onLoadFromHistor
                     <button
                       onClick={() => { onLoadFromHistory(scan); setShowDropdown(false); }}
                       className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                      aria-label={`Load ${scan.contractName}`}
                     >
                       Load
                     </button>
                     <button
                       onClick={() => { onRescan(scan); setShowDropdown(false); }}
                       className="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600"
+                      aria-label={`Re-scan ${scan.contractName}`}
                     >
                       Re-scan
                     </button>
@@ -523,6 +582,7 @@ const ScanForm = ({
   const [error,          setError]          = useState('');
   const [dragActive,     setDragActive]     = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef(null);
   const [uploadHistory,  setUploadHistory]  = useState([]);
 
   useEffect(() => {
@@ -633,7 +693,7 @@ const ScanForm = ({
       </div>
 
       {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 text-red-800 px-6 py-4 rounded-lg shadow-md">
+        <div role="alert" className="bg-red-50 border-l-4 border-red-500 text-red-800 px-6 py-4 rounded-lg shadow-md">
           <p className="font-semibold text-lg">{error}</p>
         </div>
       )}
@@ -649,13 +709,20 @@ const ScanForm = ({
         onDragOver={handleDrag}
         onDrop={handleDrop}
       >
-        <div onClick={() => document.getElementById('fileInput').click()} className="cursor-pointer">
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Upload Solidity contract file"
+          onClick={() => fileInputRef.current?.click()}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click(); } }}
+          className="cursor-pointer"
+        >
           <Upload className={`w-16 h-16 mx-auto mb-4 transition-transform ${dragActive ? 'scale-110 text-blue-700' : 'text-blue-600'}`} />
           <p className="text-gray-900 font-bold text-xl mb-2">Upload Your Solidity Contract</p>
           <p className="text-gray-600 mb-2">or drag and drop</p>
           <p className="text-gray-500 text-sm">.sol files only, max 50MB</p>
         </div>
-        <input id="fileInput" type="file" accept=".sol" onChange={handleFileUpload} className="hidden" />
+        <input ref={fileInputRef} type="file" accept=".sol" onChange={handleFileUpload} className="hidden" aria-hidden="true" />
         {uploadProgress > 0 && uploadProgress < 100 && (
           <div className="mt-4">
             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -695,11 +762,12 @@ const ScanForm = ({
 
       <div className="grid grid-cols-1 gap-6">
         <div>
-          <label className="block text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <label htmlFor="contractNameInput" className="flex text-sm font-bold text-gray-900 mb-3 items-center gap-2">
             <Sparkles className="w-4 h-4 text-blue-600" />
             Contract Name (Optional)
           </label>
           <input
+            id="contractNameInput"
             type="text"
             value={contractName}
             onChange={(e) => {
@@ -713,11 +781,12 @@ const ScanForm = ({
         </div>
 
         <div>
-          <label className="block text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <label htmlFor="contractCodeTextarea" className="flex text-sm font-bold text-gray-900 mb-3 items-center gap-2">
             <Code2 className="w-4 h-4 text-blue-600" />
             Or paste contract code
           </label>
           <textarea
+            id="contractCodeTextarea"
             value={contractCode}
             onChange={(e) => {
               setContractCode(e.target.value);
@@ -803,9 +872,11 @@ export default function App() {
         date:     new Date().toLocaleString(),
         favorite: false
       };
-      const updatedHistory = [newScan, ...scanHistory].slice(0, 10);
-      setScanHistory(updatedHistory);
-      safeLocalStorageSet('scan_history', JSON.stringify(updatedHistory));
+      setScanHistory(prev => {
+        const updated = [newScan, ...prev].slice(0, 10);
+        safeLocalStorageSet('scan_history', JSON.stringify(updated));
+        return updated;
+      });
       setCurrentPage('results');
     } catch (err) {
       setError('Scan failed: ' + err.message);
@@ -813,7 +884,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [scanHistory]);
+  }, []);
 
   const handleRescan = useCallback(async (scan) => {
     if (!scan.contractCode) {
@@ -862,33 +933,34 @@ export default function App() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [currentPage, contractCode, contractName, handleScan, handleNewScan]);
 
-  const handleNewScan = () => {
-    try {
-      setCurrentPage('scan');
-      setFindings([]);
-      setContractName('');
-      setError('');
-    } catch (err) {
-      console.error('Error resetting form:', err);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       {/* Animated background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
-        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000" />
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ isolation: 'isolate' }}>
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" style={{ willChange: 'transform' }} />
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" style={{ willChange: 'transform' }} />
+        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000" style={{ willChange: 'transform' }} />
       </div>
 
+      {/* Skip-to-content — keyboard accessibility */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-white text-blue-700 font-bold px-4 py-2 rounded z-[100]"
+      >
+        Skip to main content
+      </a>
+
       {/* Navbar */}
-      <nav className="relative bg-white/10 backdrop-blur-md border-b border-white/20 sticky top-0 z-50">
+      <nav aria-label="Main navigation" className="relative bg-white/10 backdrop-blur-md border-b border-white/20 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Shield className="w-8 h-8 text-blue-400" />
             <h1 className="text-3xl font-black text-white">BlockScope</h1>
-            <button onClick={() => setShowHelpModal(true)} className="text-blue-300 hover:text-white ml-2">
+            <button
+              onClick={() => setShowHelpModal(true)}
+              aria-label="Open help and examples"
+              className="text-blue-300 hover:text-white ml-2 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1"
+            >
               Help
             </button>
           </div>
@@ -897,7 +969,7 @@ export default function App() {
       </nav>
 
       {/* Main Content */}
-      <main className="relative max-w-6xl mx-auto px-6 py-12">
+      <main id="main-content" className="relative max-w-6xl mx-auto px-6 py-12">
         {currentPage === 'scan' ? (
           <div>
             <div className="bg-white/95 backdrop-blur rounded-3xl shadow-2xl p-12 mb-8">
@@ -923,7 +995,7 @@ export default function App() {
             </div>
 
             {/* Feature highlights */}
-            <div className="grid grid-cols-3 gap-6 mt-12">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
               <div className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-6 text-white">
                 <AlertCircle className="w-8 h-8 text-red-400 mb-4" />
                 <h3 className="font-bold text-lg mb-2">Real-time Analysis</h3>
@@ -960,7 +1032,7 @@ export default function App() {
                 </button>
               </div>
               {error && (
-                <div className="bg-red-50 border-l-4 border-red-500 text-red-800 px-6 py-4 rounded-lg mb-8 shadow-md">
+                <div role="alert" className="bg-red-50 border-l-4 border-red-500 text-red-800 px-6 py-4 rounded-lg mb-8 shadow-md">
                   {error}
                 </div>
               )}
@@ -999,6 +1071,21 @@ export default function App() {
         .animate-blob         { animation: blob 7s infinite; }
         .animation-delay-2000 { animation-delay: 2s; }
         .animation-delay-4000 { animation-delay: 4s; }
+
+        /* Respect user's reduced-motion preference */
+        @media (prefers-reduced-motion: reduce) {
+          .animate-blob,
+          .animate-spin,
+          .animate-pulse,
+          .animate-bounce {
+            animation: none !important;
+          }
+          .transition-all,
+          .transition-shadow,
+          .transition-colors {
+            transition: none !important;
+          }
+        }
       `}</style>
     </div>
   );

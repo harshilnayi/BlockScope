@@ -25,9 +25,13 @@ except ImportError:
 
     load_dotenv()
 
-    DATABASE_URL = os.getenv(
-        "DATABASE_URL", "postgresql://blockscope_dev:dev_password@localhost:5432/blockscope_dev"
-    )
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        raise RuntimeError(
+            "DATABASE_URL environment variable is required but not set. "
+            "Please set it in your .env.development or .env.production file. "
+            "Example: DATABASE_URL=postgresql://user:password@localhost:5432/blockscope_dev"
+        )
     DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "20"))
     DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "10"))
     DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))

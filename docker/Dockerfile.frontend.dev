@@ -1,0 +1,20 @@
+# BlockScope Frontend - Development Dockerfile
+# Hot-reload enabled with Vite dev server
+
+FROM node:20-alpine
+
+LABEL org.opencontainers.image.description="BlockScope Frontend (Development)"
+
+WORKDIR /app
+
+# Copy package files and install
+COPY frontend/package*.json ./
+RUN npm install
+
+# Copy source (will be overridden by volume mount in dev)
+COPY frontend/ .
+
+EXPOSE 5173
+
+# Development: Vite dev server with HMR
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
