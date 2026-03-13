@@ -1,45 +1,64 @@
 """
-BlockScope Database Configuration
-Provides database connection, session management, and base model
+BlockScope Database Configuration.
+
+Provides:
+- SQLAlchemy engine creation (PostgreSQL + SQLite support)
+- Session factory with proper lifecycle management
+- FastAPI dependency for injecting DB sessions
+- Connection health-check and table initialisation helpers
+- Optimised query helpers (pagination, bulk operations)
 """
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import declarative_base, sessionmaker
+import logging
+from contextlib import contextmanager
+from typing import Any, Generator, Optional, Type, TypeVar
 
-# Try to import settings, fall back to environment variables
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
+
+# ──────────────────────────────────────────────
+# Configuration loading
+# ──────────────────────────────────────────────
 try:
     from app.core.config import settings
 
-    DATABASE_URL = settings.database_url_sync
-    DB_POOL_SIZE = settings.DB_POOL_SIZE
-    DB_MAX_OVERFLOW = settings.DB_MAX_OVERFLOW
-    DB_POOL_TIMEOUT = settings.DB_POOL_TIMEOUT
-    DB_POOL_RECYCLE = settings.DB_POOL_RECYCLE
-    DB_ECHO = settings.DB_ECHO
+    DATABASE_URL: str = settings.database_url_sync
+    DB_POOL_SIZE: int = settings.DB_POOL_SIZE
+    DB_MAX_OVERFLOW: int = settings.DB_MAX_OVERFLOW
+    DB_POOL_TIMEOUT: int = settings.DB_POOL_TIMEOUT
+    DB_POOL_RECYCLE: int = settings.DB_POOL_RECYCLE
+    DB_ECHO: bool = settings.DB_ECHO
 
 except ImportError:
-    # Fallback to environment variables if config not available
     import os
 
     from dotenv import load_dotenv
 
     load_dotenv()
 
-    DATABASE_URL = os.getenv("DATABASE_URL")
+    DATABASE_URL = os.getenv("DATABASE_URL", "")
     if not DATABASE_URL:
         raise RuntimeError(
-            "DATABASE_URL environment variable is required but not set. "
-            "Please set it in your .env.development or .env.production file. "
-            "Example: DATABASE_URL=postgresql://user:password@localhost:5432/blockscope_dev"
+            "DATABASE_URL environment variable is required but not set.\n"
+            "Set it in your .env file, e.g.:\n"
+            "  DATABASE_URL=postgresql://user:password@localhost:5432/blockscope_dev\n"
+            "or for local development:\n"
+            "  DATABASE_URL=sqlite:///./blockscope.db"
         )
     DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "20"))
     DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "10"))
     DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
     DB_POOL_RECYCLE = int(os.getenv("DB_POOL_RECYCLE", "3600"))
-    DB_ECHO = os.getenv("DB_ECHO", "False").lower() == "true"
+    DB_ECHO = os.getenv("DB_ECHO", "false").lower() == "true"
 
-# Create SQLAlchemy engine — SQLite needs different parameters than PostgreSQL
-if DATABASE_URL.startswith("sqlite://"):
+logger = logging.getLogger("blockscope.database")
+
+# ──────────────────────────────────────────────
+# Engine creation
+# ──────────────────────────────────────────────
+_IS_SQLITE: bool = DATABASE_URL.startswith("sqlite://")
+
+if _IS_SQLITE:
     engine = create_engine(
         DATABASE_URL,
         connect_args={"check_same_thread": False},
@@ -52,68 +71,174 @@ else:
         max_overflow=DB_MAX_OVERFLOW,
         pool_timeout=DB_POOL_TIMEOUT,
         pool_recycle=DB_POOL_RECYCLE,
+        pool_pre_ping=True,   # Detect stale connections before use
         echo=DB_ECHO,
-        pool_pre_ping=True,  # Verify connections before using
     )
 
-# Create SessionLocal class
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# ──────────────────────────────────────────────
+# Session factory
+# ──────────────────────────────────────────────
+SessionLocal: sessionmaker = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+)
 
-# Create Base class for models
+# ──────────────────────────────────────────────
+# Declarative base
+# ──────────────────────────────────────────────
 Base = declarative_base()
 
+# Generic model type for query helpers
+_ModelT = TypeVar("_ModelT")
 
-# Dependency for FastAPI
-def get_db():
+
+# ──────────────────────────────────────────────
+# FastAPI dependency
+# ──────────────────────────────────────────────
+def get_db() -> Generator[Session, None, None]:
     """
-    Database session dependency for FastAPI.
+    Yield a database session and guarantee cleanup.
 
-    Yields a database session and ensures it's closed after use.
+    Intended for use as a FastAPI ``Depends`` dependency::
 
-    Usage:
-        @app.get("/items")
-        def get_items(db: Session = Depends(get_db)):
-            items = db.query(Item).all()
-            return items
+        @router.get("/items")
+        def list_items(db: Session = Depends(get_db)):
+            return db.query(Item).all()
+
+    Yields:
+        Active SQLAlchemy ``Session``.
     """
-    db = SessionLocal()
+    db: Session = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
 
-# Helper function to test database connection
-def test_connection():
+@contextmanager
+def get_db_context() -> Generator[Session, None, None]:
     """
-    Test database connection.
+    Context-manager wrapper around :func:`get_db` for non-FastAPI code.
+
+    Usage::
+
+        with get_db_context() as db:
+            scan = db.query(Scan).first()
+
+    Yields:
+        Active SQLAlchemy ``Session``.
+    """
+    db: Session = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+# ──────────────────────────────────────────────
+# Optimised query helpers
+# ──────────────────────────────────────────────
+def paginate(
+    query: Any,
+    skip: int = 0,
+    limit: int = 20,
+    max_limit: int = 100,
+) -> list:
+    """
+    Apply safe pagination to any SQLAlchemy query.
+
+    Caps ``limit`` at ``max_limit`` to prevent unbounded result sets.
+
+    Args:
+        query: An existing SQLAlchemy ORM query object.
+        skip: Number of records to skip (offset).
+        limit: Maximum records to return.
+        max_limit: Hard ceiling for ``limit`` (default 100).
 
     Returns:
-        bool: True if connection successful, False otherwise
+        List of model instances.
+    """
+    effective_limit = min(max(1, limit), max_limit)
+    effective_skip = max(0, skip)
+    return query.offset(effective_skip).limit(effective_limit).all()
+
+
+def get_by_id(
+    db: Session,
+    model: Type[_ModelT],
+    record_id: int,
+) -> Optional[_ModelT]:
+    """
+    Fetch a single record by primary key.
+
+    Prefer this over ``db.query(M).filter(M.id == id).first()``
+    because SQLAlchemy's ``Session.get()`` uses the identity map
+    (no extra round-trip if the object is already loaded).
+
+    Args:
+        db: Active database session.
+        model: SQLAlchemy model class.
+        record_id: Primary-key value to look up.
+
+    Returns:
+        Model instance if found, otherwise ``None``.
+    """
+    return db.get(model, record_id)
+
+
+def bulk_insert(db: Session, instances: list) -> None:
+    """
+    Insert multiple model instances in a single transaction.
+
+    Args:
+        db: Active database session.
+        instances: List of model instances to persist.
+    """
+    db.add_all(instances)
+    db.flush()
+
+
+# ──────────────────────────────────────────────
+# Health and lifecycle helpers
+# ──────────────────────────────────────────────
+def test_connection() -> bool:
+    """
+    Verify the database is reachable with a lightweight query.
+
+    Returns:
+        ``True`` if the connection succeeded, ``False`` otherwise.
     """
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+        logger.info("Database connection verified")
         return True
-    except Exception as e:
-        print(f"Database connection failed: {e}")
+    except Exception as exc:
+        logger.error(
+            "Database connection check failed",
+            exc_info=exc,
+            extra={"database_url": DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else "local"},
+        )
         return False
 
 
-# Initialize database tables
-def init_db():
+def init_db() -> None:
     """
-    Initialize database tables.
+    Create all tables defined by SQLAlchemy models.
 
-    Creates all tables defined by models that inherit from Base.
+    Safe to call on every startup — existing tables are not modified.
     """
+    logger.info("Initialising database tables …")
     Base.metadata.create_all(bind=engine)
+    logger.info("Database tables ready")
 
 
 if __name__ == "__main__":
-    # Test connection when run directly
-    print("Testing database connection...")
-    if test_connection():
-        print("[OK] Database connection successful!")
-    else:
-        print("[ERROR] Database connection failed!")
+    print("Testing database connection …")
+    status = "OK" if test_connection() else "FAILED"
+    print(f"Connection: {status}")
