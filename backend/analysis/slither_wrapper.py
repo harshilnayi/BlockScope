@@ -43,6 +43,7 @@ class SlitherWrapper:
         """
         Initialize the wrapper (does NOT import Slither yet).
 
+
         Args:
             timeout: Maximum wall-clock seconds for ``parse_contract``.
                      Raises ``TimeoutError`` when exceeded.
@@ -61,6 +62,14 @@ class SlitherWrapper:
         if self._available is None:
             try:
                 from slither import Slither  # noqa: F401
+
+            self.Slither = Slither
+            self.available = True
+        except ImportError:
+            print("[WARNING]  Slither not installed. Install with: pip install slither-analyzer")
+            self.available = False
+            self.Slither = None
+
 
                 self._Slither = Slither
                 self._available = True
@@ -121,9 +130,18 @@ class SlitherWrapper:
         started = time.monotonic()
 
         try:
+
             slither_obj = self._Slither(str(path))
         except Exception as exc:
             logger.error("Slither failed to parse '%s': %s", path.name, exc)
+
+            # This will parse the contract
+            slither = self.Slither(str(file_path))
+            print(f"[OK] Successfully parsed: {file_path.name}")
+            return slither
+        except Exception as e:
+            print(f"[ERROR] Error parsing contract: {e}")
+
             raise
 
         elapsed = time.monotonic() - started
