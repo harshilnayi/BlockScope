@@ -15,6 +15,7 @@ Design notes:
     - All public surface is fully type-annotated.
 """
 
+
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -129,6 +130,7 @@ def _validate_source_length(source_code: str) -> None:
                 "Source code exceeds the 500 KB limit. "
                 "Please split large contracts into smaller files."
             ),
+
         )
 
 
@@ -245,6 +247,114 @@ async def _run_analysis_and_persist(
             orchestrator.analyze, analysis_request
         )
 
+
+        )
+
+
+def _findings_to_json(scan_result: ScanResult) -> List[Dict[str, Any]]:
+    """
+    Convert a :class:`ScanResult`'s findings list to JSON-serialisable dicts.
+
+    Args:
+        scan_result: Completed scan result from the orchestrator.
+
+    Returns:
+        List of finding dictionaries ready for JSON serialisation.
+    """
+    return [
+        {
+            "title": f.title,
+            "description": f.description,
+            "severity": f.severity,
+            "line_number": getattr(f, "line_number", None),
+        }
+        for f in scan_result.findings
+    ]
+
+
+def _build_scan_record(scan_result: ScanResult, findings_json: List[Dict[str, Any]]) -> Scan:
+    """
+    Construct an ORM ``Scan`` instance from a completed scan result.
+
+    Args:
+        scan_result: Orchestrator output.
+        findings_json: Pre-serialised findings list.
+
+    Returns:
+        Unsaved ``Scan`` ORM instance (caller must ``db.add`` + ``db.commit``).
+    """
+    return Scan(
+        contract_name=scan_result.contract_name,
+        source_code=scan_result.source_code,
+        vulnerabilities_count=scan_result.vulnerabilities_count,
+        severity_breakdown=scan_result.severity_breakdown,
+        overall_score=scan_result.overall_score,
+        summary=scan_result.summary,
+        findings=findings_json,
+        scanned_at=datetime.now(timezone.utc),
+    )
+
+
+def _scan_record_to_response(scan: Scan) -> ScanResponse:
+    """
+    Convert an ORM ``Scan`` instance to a ``ScanResponse`` Pydantic model.
+
+    Args:
+        scan: A committed (ID-bearing) Scan ORM object.
+
+    Returns:
+        ``ScanResponse`` ready for the API caller.
+    """
+    return ScanResponse(
+        scan_id=scan.id,
+        contract_name=scan.contract_name,
+        vulnerabilities_count=scan.vulnerabilities_count,
+        severity_breakdown=scan.severity_breakdown,
+        overall_score=scan.overall_score,
+        summary=scan.summary,
+        findings=scan.findings or [],
+        timestamp=scan.scanned_at,
+    )
+
+
+def _run_analysis_and_persist(
+    source_code: str,
+    contract_name: str,
+    file_path: str,
+    db: Session,
+    request_id: str = "",
+) -> ScanResponse:
+    """
+    Core pipeline: run analysis → persist to DB → return response.
+
+    This helper is shared by both the JSON and file-upload endpoints
+    to avoid code duplication.
+
+    Args:
+        source_code: Solidity source code to analyse.
+        contract_name: Human-readable contract name for the record.
+        file_path: Logical file path used for logging context only.
+        db: Active database session.
+        request_id: Optional request ID for log correlation.
+
+    Returns:
+        ``ScanResponse`` with all findings and the DB-assigned scan ID.
+
+    Raises:
+        HTTPException: 500 if the analysis unexpectedly fails.
+    """
+    ctx = {"contract_name": contract_name, "file_path": file_path, "request_id": request_id}
+
+    # Run analysis
+    with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
+        analysis_request = AnalysisScanRequest(
+            source_code=source_code,
+            contract_name=contract_name,
+            file_path=file_path,
+        )
+        scan_result: ScanResult = orchestrator.analyze(analysis_request)
+
+
     _scan_logger.info(
         "Analysis complete",
         extra={
@@ -254,7 +364,11 @@ async def _run_analysis_and_persist(
         },
     )
 
+
     # ── Persist to DB (sync, but fast < 5 ms) ────────────────────────────────
+
+    # Persist
+
     with PerformanceTimer("db_persist_scan", _scan_logger, extra=ctx):
         findings_json = _findings_to_json(scan_result)
         scan_record = _build_scan_record(scan_result, findings_json)
@@ -311,7 +425,11 @@ async def scan_contract(
         source_code, contract_name = _sanitize_source(request.source_code, contract_name)
         _validate_source_length(source_code)
 
+
         return await _run_analysis_and_persist(
+
+        return _run_analysis_and_persist(
+
             source_code=source_code,
             contract_name=contract_name,
             file_path="api_upload",
@@ -404,7 +522,11 @@ async def scan_contract_file(
         contract_name: str = filename.removesuffix(".sol") or "UnnamedContract"
         source_code, contract_name = _sanitize_source(source_code, contract_name)
 
+
         return await _run_analysis_and_persist(
+
+        return _run_analysis_and_persist(
+
             source_code=source_code,
             contract_name=contract_name,
             file_path=filename,

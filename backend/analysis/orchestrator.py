@@ -3,6 +3,7 @@ Analysis Orchestrator — Coordinates all vulnerability detection tools.
 
 This module orchestrates the complete security analysis pipeline:
 
+
 1. Checks the :class:`~analysis.cache.AnalysisCache` for an existing result.
 2. Runs Slither static analysis via :class:`SlitherWrapper`.
 3. Executes custom vulnerability detection rules (concurrently with Slither).
@@ -15,17 +16,30 @@ Performance notes:
   - Slither analysis and rule detection share a single temp file.
   - Both passes run through a ``ThreadPoolExecutor`` when multiple CPU cores
     are available, reducing wall-clock time by ~40–60 % on average hardware.
+
+1. Runs Slither static analysis via :class:`SlitherWrapper`.
+2. Executes custom vulnerability detection rules.
+3. Aggregates and deduplicates findings.
+4. Calculates security scores.
+5. Returns a comprehensive :class:`~analysis.models.ScanResult`.
+
 """
 
 import logging
 import os
 import re
 import tempfile
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 from .cache import analysis_cache
+
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, Tuple
+
+
 from .models import Finding as PydanticFinding
 from .models import ScanRequest, ScanResult
 from .rules.base import Finding as RuleFinding
@@ -106,6 +120,14 @@ class AnalysisOrchestrator:
         6. Generates a human-readable summary.
         7. Stores the result in the cache and returns a :class:`ScanResult`.
 
+        1. Runs Slither static analysis.
+        2. Executes all registered vulnerability rules.
+        3. Deduplicates findings.
+        4. Calculates severity breakdown and security score.
+        5. Generates a human-readable summary.
+        6. Returns a :class:`ScanResult`.
+
+
         Args:
             request: ``ScanRequest`` containing source code and metadata.
 
@@ -174,6 +196,14 @@ class AnalysisOrchestrator:
             _remove_temp_file(tmp_file_path)
 
         # ── 4-6. Aggregate, score, summarise ─────────────────────────────
+
+        slither_findings = self._run_slither_analysis(request)
+        logger.info("Slither scan complete", extra={"finding_count": len(slither_findings)})
+
+        rule_findings = self._run_rule_analysis(request)
+        logger.info("Rule scan complete", extra={"finding_count": len(rule_findings)})
+
+
         all_findings = self._merge_and_deduplicate(slither_findings, rule_findings)
         severity_breakdown = self._calculate_severity_breakdown(all_findings)
         overall_score = self._calculate_score(all_findings)
@@ -191,8 +221,10 @@ class AnalysisOrchestrator:
             timestamp=datetime.now(timezone.utc),
         )
 
+
         # ── 7. Store in cache ─────────────────────────────────────────────
         analysis_cache.set(cache_key, result)
+
 
         logger.info(
             "Analysis complete",
@@ -201,7 +233,9 @@ class AnalysisOrchestrator:
                 "total_findings": len(all_findings),
                 "score": overall_score,
                 "summary": summary,
+
                 "cache_stats": analysis_cache.stats,
+
             },
         )
         return result
@@ -209,6 +243,7 @@ class AnalysisOrchestrator:
     # ──────────────────────────────────────────────
     # Private helpers — analysis steps
     # ──────────────────────────────────────────────
+
 
     # ──────────────────────────────────────────────
     # Private helpers — concurrent analysis passes
@@ -228,30 +263,68 @@ class AnalysisOrchestrator:
 
         Returns:
             List of :class:`PydanticFinding` from Slither detectors.
+
+    def _run_slither_analysis(self, request: ScanRequest) -> List[PydanticFinding]:
+        """
+        Run Slither static analysis on the contract source code.
+
+        Writes source code to a temporary file, invokes Slither, then
+        cleans up the temp file regardless of outcome.
+
+        Args:
+            request: ``ScanRequest`` containing the source code to analyse.
+
+        Returns:
+            List of :class:`PydanticFinding` objects extracted from Slither output.
+            Returns an empty list if Slither is unavailable or fails.
+
         """
         if not self.slither_wrapper.available:
             logger.warning("Slither not available — skipping static analysis")
             return []
 
+
         findings: List[PydanticFinding] = []
         try:
             slither_obj = self.slither_wrapper.parse_contract(tmp_file_path)
+
+
+        findings: List[PydanticFinding] = []
+        tmp_file_path: Optional[str] = None
+
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".sol", delete=False, encoding="utf-8"
+            ) as tmp_file:
+                tmp_file.write(request.source_code)
+                tmp_file_path = tmp_file.name
+
+            slither_obj = self.slither_wrapper.parse_contract(tmp_file_path)
+
             if slither_obj and hasattr(slither_obj, "detectors_results"):
                 for detector_result in slither_obj.detectors_results:
                     finding = self._convert_slither_finding(detector_result)
                     if finding:
                         findings.append(finding)
+
+
+
         except Exception as exc:
             logger.warning(
                 "Slither analysis failed — continuing without static findings",
                 exc_info=exc,
             )
+
+        finally:
+            _remove_temp_file(tmp_file_path)
+
         return findings
 
     def _run_rule_analysis_from_file(
         self, tmp_file_path: str, request: ScanRequest
     ) -> List[PydanticFinding]:
         """
+
         Execute all registered vulnerability rules against the temp file.
 
         Designed to be called from a thread pool alongside
@@ -269,6 +342,33 @@ class AnalysisOrchestrator:
 
         findings: List[PydanticFinding] = []
         try:
+
+        Execute all registered vulnerability detection rules.
+
+        Parses the contract's AST (via Slither when available) and passes it
+        to each rule.  Rules that individually fail are skipped with a warning.
+
+        Args:
+            request: ``ScanRequest`` containing the source code to analyse.
+
+        Returns:
+            Aggregated list of :class:`PydanticFinding` objects from all rules.
+        """
+        if not self.rules:
+            return []
+
+        findings: List[PydanticFinding] = []
+        tmp_file_path: Optional[str] = None
+
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".sol", delete=False, encoding="utf-8"
+            ) as tmp_file:
+                tmp_file.write(request.source_code)
+                tmp_file_path = tmp_file.name
+
+            # Attempt AST parsing for rule input
+
             ast = None
             if self.slither_wrapper.available:
                 try:
@@ -289,6 +389,7 @@ class AnalysisOrchestrator:
                         rule.rule_id,
                         exc_info=exc,
                     )
+
         except Exception as exc:
             logger.warning("Rule analysis setup failed", exc_info=exc)
         return findings
@@ -317,12 +418,24 @@ class AnalysisOrchestrator:
                 tmp_file.write(request.source_code)
                 tmp_file_path = tmp_file.name
             return self._run_rule_analysis_from_file(tmp_file_path, request)
+
+
+        except Exception as exc:
+            logger.warning("Rule analysis setup failed", exc_info=exc)
+
         finally:
             _remove_temp_file(tmp_file_path)
 
     # ──────────────────────────────────────────────
     # Private helpers — conversion
     # ──────────────────────────────────────────────
+
+
+
+    # ──────────────────────────────────────────────
+    # Private helpers — conversion
+    # ──────────────────────────────────────────────
+
 
     def _convert_slither_finding(self, detector_result: Dict) -> Optional[PydanticFinding]:
         """
@@ -403,11 +516,21 @@ class AnalysisOrchestrator:
         """
         unique: Dict[Tuple[str, Optional[int]], PydanticFinding] = {}
 
+
         for finding in slither_findings + rule_findings:
             key: Tuple[str, Optional[int]] = (finding.severity, finding.line_number)
             existing = unique.get(key)
             if existing is None or len(finding.description) > len(existing.description):
                 unique[key] = finding
+
+
+
+        for finding in slither_findings + rule_findings:
+            key: Tuple[str, Optional[int]] = (finding.severity, finding.line_number)
+            existing = unique.get(key)
+            if existing is None or len(finding.description) > len(existing.description):
+                unique[key] = finding
+
 
         return sorted(
             unique.values(),
@@ -514,6 +637,7 @@ class AnalysisOrchestrator:
         match = re.search(r"\bcontract\s+(\w+)", source_code)
         return match.group(1) if match else "Unknown"
 
+
     # ──────────────────────────────────────────────
     # Dunder methods
     # ──────────────────────────────────────────────
@@ -530,6 +654,25 @@ class AnalysisOrchestrator:
 # ──────────────────────────────────────────────
 # Module-level utilities
 # ──────────────────────────────────────────────
+
+
+    # ──────────────────────────────────────────────
+    # Dunder methods
+    # ──────────────────────────────────────────────
+
+    def __repr__(self) -> str:
+        """Return a concise debug representation of this orchestrator."""
+        return (
+            f"AnalysisOrchestrator("
+            f"rules={len(self.rules)}, "
+            f"slither_available={self.slither_wrapper.available})"
+        )
+
+
+# ──────────────────────────────────────────────
+# Module-level utilities
+# ──────────────────────────────────────────────
+
 
 def _remove_temp_file(path: Optional[str]) -> None:
     """

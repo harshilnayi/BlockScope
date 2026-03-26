@@ -179,6 +179,7 @@ class PerformanceLoggingMiddleware(BaseHTTPMiddleware):
         return response
 
 
+
 # ──────────────────────────────────────────────
 # FastAPI application instance
 # ──────────────────────────────────────────────
@@ -205,6 +206,34 @@ app.add_middleware(RequestIDMiddleware)
 
 # 2. Performance logger
 app.add_middleware(PerformanceLoggingMiddleware)
+
+
+
+
+# ──────────────────────────────────────────────
+# FastAPI application instance
+# ──────────────────────────────────────────────
+app = FastAPI(
+    title=settings.APP_NAME,
+    description=(
+        "BlockScope — Smart Contract Vulnerability Scanner. "
+        "Detects reentrancy, integer overflows, access control issues and more."
+    ),
+    version=settings.APP_VERSION,
+    docs_url="/docs" if settings.ENABLE_API_DOCS else None,
+    redoc_url="/redoc" if settings.ENABLE_API_DOCS else None,
+)
+
+# ──────────────────────────────────────────────
+# Middleware stack  (order matters — added last runs first)
+# ──────────────────────────────────────────────
+
+# 1. Request ID — must be first so all subsequent middleware can read the ID
+app.add_middleware(RequestIDMiddleware)
+
+# 2. Performance logger
+app.add_middleware(PerformanceLoggingMiddleware)
+
 
 # 3. CORS / security
 if SECURITY_ENABLED:
@@ -248,6 +277,19 @@ async def startup_event() -> None:
         except Exception:
             pass
 
+
+    # Redis (rate limiting)
+    if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:  # pragma: no cover
+        try:
+            from app.core.rate_limit import rate_limit_redis
+
+            await rate_limit_redis.connect()
+            logger.info("Redis connected for rate limiting")
+        except Exception as exc:
+            logger.warning("Redis connection failed — rate limiting disabled: %s", exc)
+
+
+
     # Redis (rate limiting)
     if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:  # pragma: no cover
         try:
@@ -271,6 +313,7 @@ async def startup_event() -> None:
     logger.info("Application startup complete")
 
 
+
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
     """Disconnect from external services on graceful shutdown."""
@@ -286,6 +329,26 @@ async def shutdown_event() -> None:
             pass
 
     logger.info("Application shutdown complete")
+
+
+
+
+@app.on_event("shutdown")
+async def shutdown_event() -> None:
+    """Disconnect from external services on graceful shutdown."""
+    logger.info("Shutting down %s …", settings.APP_NAME)
+
+    if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:  # pragma: no cover
+        try:
+            from app.core.rate_limit import rate_limit_redis
+
+            await rate_limit_redis.disconnect()
+            logger.info("Redis disconnected")
+        except Exception:
+            pass
+
+    logger.info("Application shutdown complete")
+
 
 
 # ──────────────────────────────────────────────
@@ -427,6 +490,7 @@ async def api_info() -> Dict[str, Any]:
     return info
 
 
+
 @app.get("/api/v1/performance", tags=["System"], summary="Performance & cache metrics")
 async def performance_metrics() -> Dict[str, Any]:
     """
@@ -509,6 +573,16 @@ if _scan_router_available and scan_router is not None:
     logger.info("Scan router mounted at /api/v1/scan")
 else:  # pragma: no cover
     logger.error("Scan router unavailable — scanning endpoints not registered")
+
+# ──────────────────────────────────────────────
+# Routers
+# ──────────────────────────────────────────────
+if _scan_router_available and scan_router is not None:
+    app.include_router(scan_router, prefix="/api/v1", tags=["Scanning"])
+    logger.info("Scan router mounted at /api/v1/scan")
+else:  # pragma: no cover
+    logger.error("Scan router unavailable — scanning endpoints not registered")
+
 
 # ──────────────────────────────────────────────
 # Debug-only endpoints
