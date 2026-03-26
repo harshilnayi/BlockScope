@@ -18,6 +18,7 @@ from typing import Any, Dict
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
@@ -195,6 +196,9 @@ app = FastAPI(
 # ──────────────────────────────────────────────
 # Middleware stack  (order matters — added last runs first)
 # ──────────────────────────────────────────────
+
+# 0. GZip compression — smallest-first: responses >= 1 KB are compressed
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # 1. Request ID — must be first so all subsequent middleware can read the ID
 app.add_middleware(RequestIDMiddleware)
@@ -421,6 +425,80 @@ async def api_info() -> Dict[str, Any]:
         }
 
     return info
+
+
+@app.get("/api/v1/performance", tags=["System"], summary="Performance & cache metrics")
+async def performance_metrics() -> Dict[str, Any]:
+    """
+    Return live performance and cache health metrics.
+
+    Includes analysis cache hit-rate, Slither parse-cache size,
+    and database connection pool status.
+
+    Returns:
+        Dict with cache and database pool metrics.
+    """
+    metrics: Dict[str, Any] = {}
+
+    # Analysis result cache
+    try:
+        from analysis.cache import analysis_cache
+        metrics["analysis_cache"] = analysis_cache.stats
+    except Exception:
+        metrics["analysis_cache"] = "unavailable"
+
+    # Slither parse cache
+    try:
+        from analysis.slither_wrapper import SlitherWrapper
+        metrics["slither_parse_cache_size"] = SlitherWrapper.parse_cache_size()
+    except Exception:
+        metrics["slither_parse_cache_size"] = "unavailable"
+
+    # DB pool
+    try:
+        from app.core.database import engine
+        pool = engine.pool
+        metrics["db_pool"] = {
+            "size": pool.size(),
+            "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
+            "checked_in": pool.checkedin(),
+        }
+    except Exception:
+        metrics["db_pool"] = "unavailable"
+
+    return metrics
+
+
+@app.post("/api/v1/cache/invalidate", tags=["System"], summary="Clear analysis cache")
+async def invalidate_cache() -> Dict[str, Any]:
+    """
+    Evict all entries from the in-memory analysis result cache.
+
+    Useful after deploying new analysis rules or Slither upgrades.
+    Requires no authentication (stateless dev-friendly endpoint).
+
+    Returns:
+        Dict with number of entries cleared.
+    """
+    try:
+        from analysis.cache import analysis_cache
+        from analysis.slither_wrapper import SlitherWrapper
+
+        cleared_analysis = analysis_cache.clear()
+        cleared_slither = SlitherWrapper.clear_parse_cache()
+        logger.info(
+            "Cache invalidated via API",
+            extra={"analysis_entries": cleared_analysis, "slither_entries": cleared_slither},
+        )
+        return {
+            "analysis_cache_cleared": cleared_analysis,
+            "slither_parse_cache_cleared": cleared_slither,
+            "message": "All caches cleared successfully",
+        }
+    except Exception as exc:
+        logger.error("Cache invalidation failed", exc_info=exc)
+        return {"error": str(exc)}
 
 
 # ──────────────────────────────────────────────

@@ -15,6 +15,7 @@ Design notes:
     - All public surface is fully type-annotated.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -197,7 +198,7 @@ def _scan_record_to_response(scan: Scan) -> ScanResponse:
     )
 
 
-def _run_analysis_and_persist(
+async def _run_analysis_and_persist(
     source_code: str,
     contract_name: str,
     file_path: str,
@@ -207,8 +208,14 @@ def _run_analysis_and_persist(
     """
     Core pipeline: run analysis → persist to DB → return response.
 
-    This helper is shared by both the JSON and file-upload endpoints
-    to avoid code duplication.
+    This helper is shared by both the JSON and file-upload endpoints.
+
+    The heavy ``orchestrator.analyze()`` call is CPU/IO-bound (Slither
+    invokes the Solidity compiler under the hood).  Running it directly
+    inside an ``async`` endpoint would block FastAPI's event loop and
+    serialise all concurrent requests.  We offload it to a thread-pool
+    worker via :func:`asyncio.to_thread` so the event loop stays free
+    to accept and dispatch other requests while analysis runs.
 
     Args:
         source_code: Solidity source code to analyse.
@@ -225,14 +232,18 @@ def _run_analysis_and_persist(
     """
     ctx = {"contract_name": contract_name, "file_path": file_path, "request_id": request_id}
 
-    # Run analysis
+    # ── Run analysis in thread pool (non-blocking) ────────────────────────────
+    # asyncio.to_thread() runs the callable in the default ThreadPoolExecutor
+    # so the event loop can serve other requests while Slither executes.
     with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
         analysis_request = AnalysisScanRequest(
             source_code=source_code,
             contract_name=contract_name,
             file_path=file_path,
         )
-        scan_result: ScanResult = orchestrator.analyze(analysis_request)
+        scan_result: ScanResult = await asyncio.to_thread(
+            orchestrator.analyze, analysis_request
+        )
 
     _scan_logger.info(
         "Analysis complete",
@@ -243,7 +254,7 @@ def _run_analysis_and_persist(
         },
     )
 
-    # Persist
+    # ── Persist to DB (sync, but fast < 5 ms) ────────────────────────────────
     with PerformanceTimer("db_persist_scan", _scan_logger, extra=ctx):
         findings_json = _findings_to_json(scan_result)
         scan_record = _build_scan_record(scan_result, findings_json)
@@ -300,7 +311,7 @@ async def scan_contract(
         source_code, contract_name = _sanitize_source(request.source_code, contract_name)
         _validate_source_length(source_code)
 
-        return _run_analysis_and_persist(
+        return await _run_analysis_and_persist(
             source_code=source_code,
             contract_name=contract_name,
             file_path="api_upload",
@@ -393,7 +404,7 @@ async def scan_contract_file(
         contract_name: str = filename.removesuffix(".sol") or "UnnamedContract"
         source_code, contract_name = _sanitize_source(source_code, contract_name)
 
-        return _run_analysis_and_persist(
+        return await _run_analysis_and_persist(
             source_code=source_code,
             contract_name=contract_name,
             file_path=filename,

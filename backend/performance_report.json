@@ -1,0 +1,73 @@
+{
+  "generated_at": "2026-03-26T10:12:15.831936+00:00",
+  "base_url": "http://localhost:5000",
+  "runs_per_endpoint": 1,
+  "endpoints": {
+    "health": {
+      "error": "All 1 requests failed",
+      "path": "/health"
+    },
+    "root": {
+      "error": "All 1 requests failed",
+      "path": "/"
+    },
+    "performance": {
+      "error": "All 1 requests failed",
+      "path": "/api/v1/performance"
+    },
+    "list_scans": {
+      "error": "All 1 requests failed",
+      "path": "/api/v1/scans?limit=10"
+    },
+    "scan_clean": {
+      "error": "All 1 requests failed",
+      "path": "/api/v1/scan"
+    },
+    "scan_vuln": {
+      "error": "All 1 requests failed",
+      "path": "/api/v1/scan"
+    },
+    "scan_cached": {
+      "error": "All 1 requests failed",
+      "path": "/api/v1/scan"
+    }
+  },
+  "sla": {
+    "health": {
+      "threshold_ms": 200,
+      "median_ms": null,
+      "verdict": "SKIP"
+    },
+    "root": {
+      "threshold_ms": 100,
+      "median_ms": null,
+      "verdict": "SKIP"
+    },
+    "scan_clean": {
+      "threshold_ms": 2000,
+      "median_ms": null,
+      "verdict": "SKIP"
+    },
+    "scan_vuln": {
+      "threshold_ms": 2000,
+      "median_ms": null,
+      "verdict": "SKIP"
+    },
+    "scan_cached": {
+      "threshold_ms": 100,
+      "median_ms": null,
+      "verdict": "SKIP"
+    },
+    "list_scans": {
+      "threshold_ms": 500,
+      "median_ms": null,
+      "verdict": "SKIP"
+    },
+    "performance": {
+      "threshold_ms": 200,
+      "median_ms": null,
+      "verdict": "SKIP"
+    }
+  },
+  "overall_verdict": "PASS"
+}

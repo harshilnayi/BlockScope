@@ -2,9 +2,42 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+
+    <!-- ── SEO ─────────────────────────────────────────────────────── -->
+    <title>BlockScope — Smart Contract Security Scanner</title>
+    <meta
+      name="description"
+      content="BlockScope detects reentrancy, integer overflows, access control issues, and more in your Solidity smart contracts — instantly and for free."
+    />
+    <meta name="robots" content="index, follow" />
+
+    <!-- ── Open Graph ───────────────────────────────────────────────── -->
+    <meta property="og:title"       content="BlockScope — Smart Contract Security Scanner" />
+    <meta property="og:description" content="Detect Solidity vulnerabilities in seconds with BlockScope." />
+    <meta property="og:type"        content="website" />
+
+    <!-- ── Favicon ──────────────────────────────────────────────────── -->
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
+    <!-- ── Performance hints ────────────────────────────────────────── -->
+    <!--
+      Preconnect to the backend API so the first scan request has a warmed
+      TCP/TLS connection (cuts ~100-300 ms per cold request).
+    -->
+    <link rel="preconnect" href="http://localhost:5000" crossorigin />
+
+    <!--
+      dns-prefetch is a cheaper fallback for browsers that don't support
+      preconnect (e.g. older mobile browsers).
+    -->
+    <link rel="dns-prefetch" href="http://localhost:5000" />
+
+    <!-- Theme color for mobile browsers / PWA -->
+    <meta name="theme-color" content="#0f172a" />
+
+    <!-- PWA manifest (optional — create public/manifest.json if needed) -->
+    <!-- <link rel="manifest" href="/manifest.json" /> -->
   </head>
   <body>
     <div id="root"></div>
