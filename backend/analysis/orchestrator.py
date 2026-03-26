@@ -88,9 +88,9 @@ class AnalysisOrchestrator:
             extra={"rule_count": len(rules), "slither_available": self.slither_wrapper.available},
         )
 
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
     # Public interface
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
 
     def analyze(self, request: ScanRequest) -> ScanResult:
         """
@@ -117,7 +117,7 @@ class AnalysisOrchestrator:
             extra={"file_path": request.file_path, "contract_name": request.contract_name},
         )
 
-        # ── 1. Cache lookup ──────────────────────────────────────────────
+        # -- 1. Cache lookup ----------------------------------------------
         cache_key = analysis_cache.make_key(
             request.source_code, request.contract_name or ""
         )
@@ -132,7 +132,7 @@ class AnalysisOrchestrator:
             )
             return cached  # type: ignore[return-value]
 
-        # ── 2. Write shared temp file ────────────────────────────────────
+        # -- 2. Write shared temp file ------------------------------------
         tmp_file_path: Optional[str] = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -141,7 +141,7 @@ class AnalysisOrchestrator:
                 tmp_file.write(request.source_code)
                 tmp_file_path = tmp_file.name
 
-            # ── 3. Concurrent analysis ───────────────────────────────────
+            # -- 3. Concurrent analysis -----------------------------------
             slither_findings: List[PydanticFinding] = []
             rule_findings: List[PydanticFinding] = []
 
@@ -173,7 +173,7 @@ class AnalysisOrchestrator:
         finally:
             _remove_temp_file(tmp_file_path)
 
-        # ── 4-6. Aggregate, score, summarise ─────────────────────────────
+        # -- 4-6. Aggregate, score, summarise -----------------------------
         all_findings = self._merge_and_deduplicate(slither_findings, rule_findings)
         severity_breakdown = self._calculate_severity_breakdown(all_findings)
         overall_score = self._calculate_score(all_findings)
@@ -191,7 +191,7 @@ class AnalysisOrchestrator:
             timestamp=datetime.now(timezone.utc),
         )
 
-        # ── 7. Store in cache ─────────────────────────────────────────────
+        # -- 7. Store in cache ---------------------------------------------
         analysis_cache.set(cache_key, result)
 
         logger.info(
@@ -206,13 +206,13 @@ class AnalysisOrchestrator:
         )
         return result
 
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
     # Private helpers — analysis steps
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
 
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
     # Private helpers — concurrent analysis passes
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
 
     def _run_slither_analysis_from_file(
         self, tmp_file_path: str
@@ -320,9 +320,9 @@ class AnalysisOrchestrator:
         finally:
             _remove_temp_file(tmp_file_path)
 
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
     # Private helpers — conversion
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
 
     def _convert_slither_finding(self, detector_result: Dict) -> Optional[PydanticFinding]:
         """
@@ -377,9 +377,9 @@ class AnalysisOrchestrator:
             recommendation=rule_finding.remediation,
         )
 
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
     # Private helpers — aggregation & scoring
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
 
     def _merge_and_deduplicate(
         self,
@@ -514,9 +514,9 @@ class AnalysisOrchestrator:
         match = re.search(r"\bcontract\s+(\w+)", source_code)
         return match.group(1) if match else "Unknown"
 
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
     # Dunder methods
-    # ──────────────────────────────────────────────
+    # ----------------------------------------------
 
     def __repr__(self) -> str:
         """Return a concise debug representation of this orchestrator."""
@@ -527,9 +527,9 @@ class AnalysisOrchestrator:
         )
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Module-level utilities
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 def _remove_temp_file(path: Optional[str]) -> None:
     """

@@ -31,9 +31,9 @@ from app.core.logger import PerformanceTimer, log_error_context, logger
 from app.models.scan import Scan
 from app.schemas.scan_schema import ScanRequest, ScanResponse
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Security modules (optional, graceful fallback)
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 try:
     from app.core.auth import APIKey, get_optional_api_key
     from app.core.rate_limit import rate_limit
@@ -52,9 +52,9 @@ except ImportError:
     def rate_limit(**kwargs: Any):  # type: ignore[misc]
         return lambda func: func
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Module-level singletons
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 _scan_logger = logging.getLogger("blockscope.scan")
 
 router = APIRouter(tags=["scans"])
@@ -67,9 +67,9 @@ if SECURITY_ENABLED:  # pragma: no cover
     _input_sanitizer = InputSanitizer()
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Helper utilities
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 def _conditional_rate_limit(**kwargs: Any):
     """
@@ -232,7 +232,7 @@ async def _run_analysis_and_persist(
     """
     ctx = {"contract_name": contract_name, "file_path": file_path, "request_id": request_id}
 
-    # ── Run analysis in thread pool (non-blocking) ────────────────────────────
+    # -- Run analysis in thread pool (non-blocking) ----------------------------
     # asyncio.to_thread() runs the callable in the default ThreadPoolExecutor
     # so the event loop can serve other requests while Slither executes.
     with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
@@ -254,7 +254,7 @@ async def _run_analysis_and_persist(
         },
     )
 
-    # ── Persist to DB (sync, but fast < 5 ms) ────────────────────────────────
+    # -- Persist to DB (sync, but fast < 5 ms) --------------------------------
     with PerformanceTimer("db_persist_scan", _scan_logger, extra=ctx):
         findings_json = _findings_to_json(scan_result)
         scan_record = _build_scan_record(scan_result, findings_json)
@@ -270,9 +270,9 @@ async def _run_analysis_and_persist(
     return _scan_record_to_response(scan_record)
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Endpoints
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 @router.post("/scan", response_model=ScanResponse, summary="Scan contract source code")
 @_conditional_rate_limit(per_minute=5, per_hour=20)
@@ -546,9 +546,9 @@ async def get_scan(
         ) from exc
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Delete endpoint (only registered when security is available)
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 if SECURITY_ENABLED:  # pragma: no cover
 
     @router.delete("/scans/{scan_id}", summary="Delete a scan (requires API key)")

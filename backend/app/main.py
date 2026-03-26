@@ -27,9 +27,9 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from app.core.logger import logger, set_request_id
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Settings (with graceful fallback)
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 try:
     from app.core.config import print_config_summary, settings
 
@@ -52,9 +52,9 @@ except ImportError:
     SECURITY_ENABLED = False
     logger.warning("Running without security modules — set up config to enable full security")
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Routers
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 try:
     from app.routers.scan import router as scan_router
 
@@ -65,9 +65,9 @@ except ImportError:
     _scan_router_available = False
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Middleware definitions
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """
@@ -179,9 +179,9 @@ class PerformanceLoggingMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # FastAPI application instance
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 app = FastAPI(
     title=settings.APP_NAME,
     description=(
@@ -193,9 +193,9 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENABLE_API_DOCS else None,
 )
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Middleware stack  (order matters — added last runs first)
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 # 0. GZip compression — smallest-first: responses >= 1 KB are compressed
 app.add_middleware(GZipMiddleware, minimum_size=1024)
@@ -233,9 +233,9 @@ else:
     logger.warning("Permissive CORS active — not suitable for production")  # pragma: no cover
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Lifecycle events
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 @app.on_event("startup")
 async def startup_event() -> None:
@@ -288,9 +288,9 @@ async def shutdown_event() -> None:
     logger.info("Application shutdown complete")
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Global exception handlers
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -327,9 +327,9 @@ async def internal_error_handler(request: Request, exc: Exception) -> JSONRespon
     )
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # System endpoints
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 @app.get("/health", tags=["System"], summary="Health check")
 async def health_check() -> Dict[str, Any]:
@@ -501,18 +501,18 @@ async def invalidate_cache() -> Dict[str, Any]:
         return {"error": str(exc)}
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Routers
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 if _scan_router_available and scan_router is not None:
     app.include_router(scan_router, prefix="/api/v1", tags=["Scanning"])
     logger.info("Scan router mounted at /api/v1/scan")
 else:  # pragma: no cover
     logger.error("Scan router unavailable — scanning endpoints not registered")
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Debug-only endpoints
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 if settings.DEBUG:  # pragma: no cover
 
     @app.get("/debug/routes", tags=["Debug"], include_in_schema=False)
@@ -543,9 +543,9 @@ if settings.DEBUG:  # pragma: no cover
         }
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Direct execution entry point
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
