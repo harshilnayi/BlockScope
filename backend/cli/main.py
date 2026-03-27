@@ -96,16 +96,16 @@ def scan(contract_file, output, contract_name):
                     click.echo(f"  {i}. {finding.title} ({finding.severity})")
                     click.echo(f"     {finding.description}\n")
             else:
-                click.secho("\n✅ No vulnerabilities found!", fg="green")
+                click.secho("\n[OK] No vulnerabilities found!", fg="green")
 
             click.secho(f"\n{'='*60}\n", fg="cyan")
 
     except FileNotFoundError:
-        click.secho(f"❌ File not found: {contract_file}", fg="red")
+        click.secho(f"[ERROR] File not found: {contract_file}", fg="red")
         raise SystemExit(1)
 
     except Exception as e:
-        click.secho(f"❌ Error scanning contract: {str(e)}", fg="red")
+        click.secho(f"[ERROR] Error scanning contract: {str(e)}", fg="red")
         raise SystemExit(1)
 
 

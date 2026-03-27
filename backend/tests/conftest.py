@@ -30,6 +30,10 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+# ── Import ALL models so SQLAlchemy resolves relationships before tables are created ──
+# app.models.__init__ imports Finding before Scan (correct order for back_populates).
+import app.models  # noqa: F401, E402
+
 
 # ==================== Database Fixtures ====================
 

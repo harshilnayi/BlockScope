@@ -1,9 +1,9 @@
 import pytest
 from unittest.mock import patch
 
-from backend.analysis.orchestrator import AnalysisOrchestrator
-from backend.analysis.models import ScanRequest
-from backend.analysis.rules.base import VulnerabilityRule, Finding as RuleFinding, Severity
+from analysis.orchestrator import AnalysisOrchestrator
+from analysis.models import ScanRequest
+from analysis.rules.base import VulnerabilityRule, Finding as RuleFinding, Severity
 
 
 # --------------------
@@ -11,20 +11,12 @@ from backend.analysis.rules.base import VulnerabilityRule, Finding as RuleFindin
 # --------------------
 
 @pytest.fixture
-def slither_available(monkeypatch):
-    monkeypatch.setattr(
-        "backend.analysis.orchestrator.SlitherWrapper.available",
-        True,
-        raising=False
-    )
-    monkeypatch.setattr(
-        "backend.analysis.orchestrator.SlitherWrapper.parse_contract",
-        lambda self, path: object()
-    )
-    monkeypatch.setattr(
-        "backend.analysis.orchestrator.SlitherWrapper.get_ast_nodes",
-        lambda self, obj: {"dummy": "ast"}
-    )
+def slither_available():
+    """
+    This fixture doesn't pre-patch. Instead, the tests that need it
+    will patch the orchestrator instance after creation.
+    """
+    return True
 
 
 @pytest.fixture
@@ -49,7 +41,7 @@ class DummyRule(VulnerabilityRule):
             RuleFinding(
                 rule_id="R001",
                 title="Dummy Issue",
-                name="Dummy Issue",          # ✅ FIX
+                name="Dummy Issue",          # [OK] FIX
                 description="Test issue",
                 severity=Severity.LOW,
                 line_number=10,
@@ -77,7 +69,7 @@ class MixedRule(VulnerabilityRule):
             RuleFinding(
                 rule_id="CRIT",
                 title="Critical issue",
-                name="Critical issue",       # ✅ FIX
+                name="Critical issue",       # [OK] FIX
                 description="critical issue",
                 severity=Severity.CRITICAL,
                 line_number=1,
@@ -87,7 +79,7 @@ class MixedRule(VulnerabilityRule):
             RuleFinding(
                 rule_id="HIGH",
                 title="High issue",
-                name="High issue",           # ✅ FIX
+                name="High issue",           # [OK] FIX
                 description="high issue",
                 severity=Severity.HIGH,
                 line_number=2,
@@ -97,7 +89,7 @@ class MixedRule(VulnerabilityRule):
             RuleFinding(
                 rule_id="LOW",
                 title="Low issue",
-                name="Low issue",            # ✅ FIX
+                name="Low issue",            # [OK] FIX
                 description="low issue",
                 severity=Severity.LOW,
                 line_number=3,
@@ -114,6 +106,11 @@ class MixedRule(VulnerabilityRule):
 
 def test_analyze_returns_scan_result(slither_available):
     orchestrator = AnalysisOrchestrator(rules=[DummyRule()])
+    # Patch the instance so rules get an AST to work with
+    orchestrator.slither_wrapper.available = True
+    orchestrator.slither_wrapper.parse_contract = lambda path: type('Obj', (), {'detectors_results': [], 'contracts': []})()
+    orchestrator.slither_wrapper.get_ast_nodes = lambda obj: {"dummy": "ast"}
+
     request = ScanRequest(
         file_path="Test.sol",
         source_code="contract Test { function foo() public {} }",
@@ -152,6 +149,11 @@ def test_rule_failure_does_not_break_analysis(scan_request):
 
 def test_score_calculation_multiple_severities(slither_available):
     orchestrator = AnalysisOrchestrator(rules=[MixedRule()])
+    # Patch the instance so rules get an AST to work with
+    orchestrator.slither_wrapper.available = True
+    orchestrator.slither_wrapper.parse_contract = lambda path: type('Obj', (), {'detectors_results': [], 'contracts': []})()
+    orchestrator.slither_wrapper.get_ast_nodes = lambda obj: {"dummy": "ast"}
+
     request = ScanRequest(
         file_path="Test.sol",
         source_code="contract Test { function foo() public {} }",

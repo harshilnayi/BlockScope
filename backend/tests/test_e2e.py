@@ -182,7 +182,7 @@ contract Test {
         keyword in output.lower() for keyword in ["scan", "analyz", "contract"]
     ), "Output should mention scanning or analysis"
 
-    print(f"✅ CLI scan test passed!")
+    print(f"[OK] CLI scan test passed!")
 
 
 def test_cli_scan_with_sample_sol(sample_sol_path):
@@ -212,7 +212,7 @@ def test_cli_scan_with_sample_sol(sample_sol_path):
     output = result.stdout + result.stderr
     assert len(output) > 0, "CLI should produce some output"
 
-    print(f"✅ CLI sample.sol test passed!")
+    print(f"[OK] CLI sample.sol test passed!")
 
 
 def test_cli_help_command():
@@ -238,7 +238,7 @@ def test_cli_help_command():
         "usage" in result.stdout.lower() or "help" in result.stdout.lower()
     ), "Help output should contain usage information"
 
-    print(f"✅ CLI help test passed!")
+    print(f"[OK] CLI help test passed!")
 
 
 # ============================================================================
@@ -265,7 +265,7 @@ def test_fastapi_health_check(test_client):
     assert "status" in data, "Response should contain status"
     assert data["status"] == "healthy", "Status should be healthy"
 
-    print(f"✅ Health check test passed!")
+    print(f"[OK] Health check test passed!")
 
 
 def test_fastapi_scan_endpoint_simple(test_client, test_contract_code):
@@ -314,7 +314,7 @@ def test_fastapi_scan_endpoint_simple(test_client, test_contract_code):
     # Assert: Score is in valid range
     assert 0 <= data["overall_score"] <= 100, "Score should be 0-100"
 
-    print(f"✅ FastAPI scan endpoint test passed!")
+    print(f"[OK] FastAPI scan endpoint test passed!")
     print(f"   Score: {data['overall_score']}/100")
     print(f"   Findings: {len(data['findings'])}")
     print(f"   Summary: {data['summary']}")
@@ -356,7 +356,7 @@ def test_fastapi_scan_endpoint_with_findings(test_client, vulnerable_contract_co
     assert "medium" in data["severity_breakdown"]
     assert "low" in data["severity_breakdown"]
 
-    print(f"✅ Vulnerable contract test passed!")
+    print(f"[OK] Vulnerable contract test passed!")
     print(f"   Score: {data['overall_score']}/100")
     print(f"   Findings: {data['vulnerabilities_count']}")
 
@@ -388,7 +388,7 @@ def test_fastapi_scan_endpoint_validation(test_client):
     # Should still process (might return score of 100 with no findings)
     assert response.status_code in [200, 400, 422], "Should handle empty code"
 
-    print(f"✅ Input validation test passed!")
+    print(f"[OK] Input validation test passed!")
 
 
 def test_fastapi_scan_endpoint_response_format(test_client, test_contract_code):
@@ -429,7 +429,7 @@ def test_fastapi_scan_endpoint_response_format(test_client, test_contract_code):
         data["findings"]
     ), "vulnerabilities_count should match findings length"
 
-    print(f"✅ Response format test passed!")
+    print(f"[OK] Response format test passed!")
     print(f"   All {len(required_fields)} required fields present")
 
 
@@ -453,7 +453,7 @@ def test_end_to_end_flow_complete(test_client, test_contract_code):
     print("   Step 1: Health check...")
     health_response = test_client.get("/health")
     assert health_response.status_code == 200
-    print("   ✓ API is healthy")
+    print("   [OK] API is healthy")
 
     # Step 2: Submit scan
     print("   Step 2: Submit scan request...")
@@ -465,7 +465,7 @@ def test_end_to_end_flow_complete(test_client, test_contract_code):
 
     scan_response = test_client.post("/api/v1/scan", json=scan_request)
     assert scan_response.status_code == 200
-    print("   ✓ Scan completed successfully")
+    print("   [OK] Scan completed successfully")
 
     # Step 3: Verify results
     print("   Step 3: Verify results...")
@@ -477,8 +477,8 @@ def test_end_to_end_flow_complete(test_client, test_contract_code):
     assert isinstance(result["findings"], list)
     assert isinstance(result["summary"], str)
 
-    print("   ✓ Results verified")
-    print(f"\n✅ Complete end-to-end flow test passed!")
+    print("   [OK] Results verified")
+    print(f"\n[OK] Complete end-to-end flow test passed!")
     print(f"   Contract: {result['contract_name']}")
     print(f"   Score: {result['overall_score']}/100")
     print(f"   Summary: {result['summary']}")
@@ -498,11 +498,11 @@ def test_all_components_integrated():
     # Test imports
     from backend.analysis import AnalysisOrchestrator, ScanRequest, ScanResult
 
-    print("   ✓ All imports successful")
+    print("   [OK] All imports successful")
 
     # Test orchestrator creation
     orchestrator = AnalysisOrchestrator(rules=[])
-    print(f"   ✓ Orchestrator created: {orchestrator}")
+    print(f"   [OK] Orchestrator created: {orchestrator}")
 
     # Test request creation
     request = ScanRequest(
@@ -510,18 +510,18 @@ def test_all_components_integrated():
         contract_name="Test",
         file_path="/test.sol",
     )
-    print(f"   ✓ Request created: {request.contract_name}")
+    print(f"   [OK] Request created: {request.contract_name}")
 
     # Test analysis
     result = orchestrator.analyze(request)
-    print(f"   ✓ Analysis completed: {result.overall_score}/100")
+    print(f"   [OK] Analysis completed: {result.overall_score}/100")
 
     # Verify result
     assert isinstance(result, ScanResult)
     assert result.contract_name == "Test"
     assert 0 <= result.overall_score <= 100
 
-    print(f"\n✅ Component integration test passed!")
+    print(f"\n[OK] Component integration test passed!")
     print(f"   All components working together successfully")
 
 

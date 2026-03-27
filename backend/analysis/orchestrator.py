@@ -1,90 +1,124 @@
 """
-Analysis Orchestrator - Coordinates all vulnerability detection tools.
+Analysis Orchestrator — Coordinates all vulnerability detection tools.
 
 This module orchestrates the complete security analysis pipeline:
-1. Runs Slither static analysis via SlitherWrapper
-2. Executes custom vulnerability detection rules
-3. Aggregates and deduplicates findings
-4. Calculates security scores
-5. Returns comprehensive scan results
+
+1. Runs Slither static analysis via :class:`SlitherWrapper`.
+2. Executes custom vulnerability detection rules.
+3. Aggregates and deduplicates findings.
+4. Calculates security scores.
+5. Returns a comprehensive :class:`~analysis.models.ScanResult`.
 """
 
+import logging
 import os
+import re
 import tempfile
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, Tuple
 
-# Use relative imports within the analysis package
 from .models import Finding as PydanticFinding
 from .models import ScanRequest, ScanResult
 from .rules.base import Finding as RuleFinding
 from .rules.base import VulnerabilityRule
 from .slither_wrapper import SlitherWrapper
 
+logger = logging.getLogger("blockscope.analysis")
+
+# Severity ordering used for deduplication sorting
+_SEVERITY_ORDER: Dict[str, int] = {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 3,
+    "info": 4,
+}
+
+# Scoring weights per severity level
+_SEVERITY_WEIGHTS: Dict[str, int] = {
+    "critical": 10,
+    "high": 5,
+    "medium": 2,
+    "low": 1,
+    "info": 0,
+}
+
+# Slither impact → internal severity mapping
+_SLITHER_IMPACT_MAP: Dict[str, str] = {
+    "High": "critical",
+    "Medium": "high",
+    "Low": "medium",
+    "Informational": "low",
+}
+
 
 class AnalysisOrchestrator:
     """
     Orchestrates the complete smart contract security analysis pipeline.
 
-    This class coordinates multiple analysis tools and aggregates their findings
-    into a unified security report with calculated risk scores.
+    Coordinates multiple analysis tools (Slither + custom rules) and
+    aggregates their findings into a unified security report with
+    calculated risk scores.
+
+    Attributes:
+        rules: Registered :class:`~analysis.rules.base.VulnerabilityRule` instances.
+        slither_wrapper: Configured :class:`SlitherWrapper` instance.
     """
 
-    def __init__(self, rules: List[VulnerabilityRule]):
+    def __init__(self, rules: List[VulnerabilityRule]) -> None:
         """
-        Initialize the orchestrator with vulnerability detection rules.
+        Initialise the orchestrator with vulnerability detection rules.
 
         Args:
-            rules: List of VulnerabilityRule instances to run during analysis
+            rules: List of ``VulnerabilityRule`` instances to run during analysis.
         """
-        self.rules = rules
-        self.slither_wrapper = SlitherWrapper()
+        self.rules: List[VulnerabilityRule] = rules
+        self.slither_wrapper: SlitherWrapper = SlitherWrapper()
+        logger.debug(
+            "AnalysisOrchestrator initialised",
+            extra={"rule_count": len(rules), "slither_available": self.slither_wrapper.available},
+        )
+
+    # ──────────────────────────────────────────────
+    # Public interface
+    # ──────────────────────────────────────────────
 
     def analyze(self, request: ScanRequest) -> ScanResult:
         """
         Perform complete security analysis on a smart contract.
 
-        This method:
-        1. Runs Slither static analysis
-        2. Executes all registered vulnerability rules
-        3. Deduplicates findings
-        4. Calculates security score
-        5. Returns comprehensive results
+        Steps:
+
+        1. Runs Slither static analysis.
+        2. Executes all registered vulnerability rules.
+        3. Deduplicates findings.
+        4. Calculates severity breakdown and security score.
+        5. Generates a human-readable summary.
+        6. Returns a :class:`ScanResult`.
 
         Args:
-            request: ScanRequest containing source code and metadata
+            request: ``ScanRequest`` containing source code and metadata.
 
         Returns:
-            ScanResult with all findings, scores, and summary
+            ``ScanResult`` with all findings, scores, and summary.
         """
-        print(f"[SCAN] Starting analysis for: {request.file_path}")
+        logger.info(
+            "Starting analysis",
+            extra={"file_path": request.file_path, "contract_name": request.contract_name},
+        )
 
-        # Step 1: Run Slither analysis
         slither_findings = self._run_slither_analysis(request)
-        print(f"   [OK] Slither found {len(slither_findings)} issues")
+        logger.info("Slither scan complete", extra={"finding_count": len(slither_findings)})
 
-        # Step 2: Run custom vulnerability rules
         rule_findings = self._run_rule_analysis(request)
-        print(f"   [OK] Rules found {len(rule_findings)} issues")
+        logger.info("Rule scan complete", extra={"finding_count": len(rule_findings)})
 
-        # Step 3: Merge and deduplicate findings
         all_findings = self._merge_and_deduplicate(slither_findings, rule_findings)
-        print(f"   [OK] Total unique findings: {len(all_findings)}")
-
-        # Step 4: Calculate severity breakdown
         severity_breakdown = self._calculate_severity_breakdown(all_findings)
-
-        # Step 5: Calculate overall security score
         overall_score = self._calculate_score(all_findings)
-
-        # Step 6: Generate summary
         summary = self._generate_summary(severity_breakdown, overall_score)
-
-        # Step 7: Extract or detect contract name
         contract_name = request.contract_name or self._extract_contract_name(request.source_code)
 
-        # Step 8: Build and return ScanResult
         result = ScanResult(
             contract_name=contract_name,
             source_code=request.source_code,
@@ -93,31 +127,45 @@ class AnalysisOrchestrator:
             severity_breakdown=severity_breakdown,
             overall_score=overall_score,
             summary=summary,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
-        print(f"[DONE] Analysis complete: {summary}")
+        logger.info(
+            "Analysis complete",
+            extra={
+                "contract_name": contract_name,
+                "total_findings": len(all_findings),
+                "score": overall_score,
+                "summary": summary,
+            },
+        )
         return result
+
+    # ──────────────────────────────────────────────
+    # Private helpers — analysis steps
+    # ──────────────────────────────────────────────
 
     def _run_slither_analysis(self, request: ScanRequest) -> List[PydanticFinding]:
         """
-        Run Slither static analysis on the contract.
+        Run Slither static analysis on the contract source code.
+
+        Writes source code to a temporary file, invokes Slither, then
+        cleans up the temp file regardless of outcome.
 
         Args:
-            request: ScanRequest with source code
+            request: ``ScanRequest`` containing the source code to analyse.
 
         Returns:
-            List of Pydantic Finding objects from Slither
+            List of :class:`PydanticFinding` objects extracted from Slither output.
+            Returns an empty list if Slither is unavailable or fails.
         """
-        findings = []
-
-        # Check if Slither is available
         if not self.slither_wrapper.available:
-            print("   [WARNING] Slither not available, skipping static analysis")
-            return findings
+            logger.warning("Slither not available — skipping static analysis")
+            return []
 
-        # Create temporary file for Slither analysis
-        tmp_file_path = None
+        findings: List[PydanticFinding] = []
+        tmp_file_path: Optional[str] = None
+
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".sol", delete=False, encoding="utf-8"
@@ -125,42 +173,43 @@ class AnalysisOrchestrator:
                 tmp_file.write(request.source_code)
                 tmp_file_path = tmp_file.name
 
-            # Run Slither
             slither_obj = self.slither_wrapper.parse_contract(tmp_file_path)
 
-            # Extract findings from Slither
             if slither_obj and hasattr(slither_obj, "detectors_results"):
                 for detector_result in slither_obj.detectors_results:
                     finding = self._convert_slither_finding(detector_result)
                     if finding:
                         findings.append(finding)
 
-        except Exception as e:
-            print(f"   [WARNING] Slither analysis failed: {e}")
+        except Exception as exc:
+            logger.warning(
+                "Slither analysis failed — continuing without static findings",
+                exc_info=exc,
+            )
         finally:
-            # Clean up temporary file
-            try:
-                if tmp_file_path and os.path.exists(tmp_file_path):
-                    os.unlink(tmp_file_path)
-            except:
-                pass
+            _remove_temp_file(tmp_file_path)
 
         return findings
 
     def _run_rule_analysis(self, request: ScanRequest) -> List[PydanticFinding]:
         """
-        Run all registered vulnerability detection rules.
+        Execute all registered vulnerability detection rules.
+
+        Parses the contract's AST (via Slither when available) and passes it
+        to each rule.  Rules that individually fail are skipped with a warning.
 
         Args:
-            request: ScanRequest with source code
+            request: ``ScanRequest`` containing the source code to analyse.
 
         Returns:
-            List of Pydantic Finding objects from rules
+            Aggregated list of :class:`PydanticFinding` objects from all rules.
         """
-        findings = []
+        if not self.rules:
+            return []
 
-        # Create temporary file for rule analysis
-        tmp_file_path = None
+        findings: List[PydanticFinding] = []
+        tmp_file_path: Optional[str] = None
+
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".sol", delete=False, encoding="utf-8"
@@ -168,81 +217,81 @@ class AnalysisOrchestrator:
                 tmp_file.write(request.source_code)
                 tmp_file_path = tmp_file.name
 
-            # Parse contract for rules (if Slither available)
+            # Attempt AST parsing for rule input
             ast = None
             if self.slither_wrapper.available:
                 try:
                     slither_obj = self.slither_wrapper.parse_contract(tmp_file_path)
                     ast = self.slither_wrapper.get_ast_nodes(slither_obj)
-                except Exception as e:
-                    print(f"   [WARNING] AST parsing failed: {e}")
+                except Exception as exc:
+                    logger.warning("AST parsing failed — rules will be skipped", exc_info=exc)
 
-            # Run each rule
             for rule in self.rules:
                 try:
-                    rule_findings = rule.detect(ast) if ast else []
-
-                    # Convert RuleFinding to PydanticFinding
+                    rule_findings: List[RuleFinding] = rule.detect(ast) if ast else []
                     for rf in rule_findings:
-                        pydantic_finding = self._convert_rule_finding(rf)
-                        findings.append(pydantic_finding)
+                        findings.append(self._convert_rule_finding(rf))
+                except Exception as exc:
+                    logger.warning(
+                        "Rule '%s' raised an exception — skipping",
+                        rule.rule_id,
+                        exc_info=exc,
+                    )
 
-                except Exception as e:
-                    print(f"   [WARNING] Rule {rule.rule_id} failed: {e}")
-
-        except Exception as e:
-            print(f"   [WARNING] Rule analysis setup failed: {e}")
+        except Exception as exc:
+            logger.warning("Rule analysis setup failed", exc_info=exc)
         finally:
-            # Clean up temporary file
-            try:
-                if tmp_file_path and os.path.exists(tmp_file_path):
-                    os.unlink(tmp_file_path)
-            except:
-                pass
+            _remove_temp_file(tmp_file_path)
 
         return findings
 
-    def _convert_slither_finding(self, detector_result: Dict) -> PydanticFinding:
+    # ──────────────────────────────────────────────
+    # Private helpers — conversion
+    # ──────────────────────────────────────────────
+
+    def _convert_slither_finding(self, detector_result: Dict) -> Optional[PydanticFinding]:
         """
-        Convert Slither detector result to Pydantic Finding.
+        Convert a raw Slither detector result dict to a :class:`PydanticFinding`.
 
         Args:
-            detector_result: Raw detector result from Slither
+            detector_result: Dictionary produced by Slither's detector.
 
         Returns:
-            PydanticFinding object
+            Converted :class:`PydanticFinding`, or ``None`` if conversion fails.
         """
-        # Map Slither impact to severity
-        impact_map = {"High": "critical", "Medium": "high", "Low": "medium", "Informational": "low"}
+        try:
+            severity = _SLITHER_IMPACT_MAP.get(detector_result.get("impact", "Low"), "low")
 
-        severity = impact_map.get(detector_result.get("impact", "Low"), "low")
+            line_number: Optional[int] = None
+            elements = detector_result.get("elements", [])
+            if elements:
+                source_mapping = elements[0].get("source_mapping", {})
+                lines: List[int] = source_mapping.get("lines", [])
+                line_number = lines[0] if lines else None
 
-        # Extract line number from elements if available
-        line_number = None
-        code_snippet = None
-        if "elements" in detector_result and detector_result["elements"]:
-            first_element = detector_result["elements"][0]
-            if "source_mapping" in first_element:
-                line_number = first_element["source_mapping"].get("lines", [None])[0]
-
-        return PydanticFinding(
-            title=detector_result.get("check", "Unknown Slither Issue"),
-            severity=severity,
-            description=detector_result.get("description", "Issue detected by Slither"),
-            line_number=line_number,
-            code_snippet=code_snippet,
-            recommendation=detector_result.get("recommendation", "Review Slither documentation"),
-        )
+            return PydanticFinding(
+                title=detector_result.get("check", "Unknown Slither Issue"),
+                severity=severity,
+                description=detector_result.get("description", "Issue detected by Slither"),
+                line_number=line_number,
+                code_snippet=None,
+                recommendation=detector_result.get(
+                    "recommendation", "Review the Slither documentation for details."
+                ),
+            )
+        except Exception as exc:
+            logger.warning("Failed to convert Slither finding", exc_info=exc)
+            return None
 
     def _convert_rule_finding(self, rule_finding: RuleFinding) -> PydanticFinding:
         """
-        Convert RuleFinding (dataclass) to PydanticFinding.
+        Convert a :class:`RuleFinding` dataclass to a :class:`PydanticFinding`.
 
         Args:
-            rule_finding: RuleFinding from vulnerability rule
+            rule_finding: Finding emitted by a custom vulnerability rule.
 
         Returns:
-            PydanticFinding object
+            Equivalent :class:`PydanticFinding` Pydantic model.
         """
         return PydanticFinding(
             title=rule_finding.name,
@@ -253,135 +302,117 @@ class AnalysisOrchestrator:
             recommendation=rule_finding.remediation,
         )
 
+    # ──────────────────────────────────────────────
+    # Private helpers — aggregation & scoring
+    # ──────────────────────────────────────────────
+
     def _merge_and_deduplicate(
-        self, slither_findings: List[PydanticFinding], rule_findings: List[PydanticFinding]
+        self,
+        slither_findings: List[PydanticFinding],
+        rule_findings: List[PydanticFinding],
     ) -> List[PydanticFinding]:
         """
-        Merge findings from different sources and remove duplicates.
+        Merge findings from Slither and rules, removing duplicates.
 
-        Deduplication strategy: If two findings have the same severity and line number,
-        keep only one (prefer the one with more detailed description).
+        Deduplication key: ``(severity, line_number)``.  When two findings
+        share the same key, the one with the longer description is kept
+        (heuristic for richer detail).
 
         Args:
-            slither_findings: Findings from Slither
-            rule_findings: Findings from custom rules
+            slither_findings: Findings from Slither static analysis.
+            rule_findings: Findings from custom vulnerability rules.
 
         Returns:
-            Deduplicated list of findings
+            Deduplicated and severity-sorted list of findings
+            (critical → high → medium → low → info).
         """
-        all_findings = slither_findings + rule_findings
+        unique: Dict[Tuple[str, Optional[int]], PydanticFinding] = {}
 
-        # Use a dict to track unique findings by (severity, line_number)
-        unique_findings = {}
+        for finding in slither_findings + rule_findings:
+            key: Tuple[str, Optional[int]] = (finding.severity, finding.line_number)
+            existing = unique.get(key)
+            if existing is None or len(finding.description) > len(existing.description):
+                unique[key] = finding
 
-        for finding in all_findings:
-            # Create key for deduplication
-            key = (finding.severity, finding.line_number)
-
-            # If we haven't seen this finding before, add it
-            if key not in unique_findings:
-                unique_findings[key] = finding
-            else:
-                # If we have seen it, keep the one with longer description
-                existing = unique_findings[key]
-                if len(finding.description) > len(existing.description):
-                    unique_findings[key] = finding
-
-        # Sort by severity (critical first) and then by line number
-        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-
-        sorted_findings = sorted(
-            unique_findings.values(),
+        return sorted(
+            unique.values(),
             key=lambda f: (
-                severity_order.get(f.severity, 5),
-                f.line_number if f.line_number else 9999,
+                _SEVERITY_ORDER.get(f.severity, 5),
+                f.line_number if f.line_number is not None else 9999,
             ),
         )
 
-        return sorted_findings
-
-    def _calculate_severity_breakdown(self, findings: List[PydanticFinding]) -> Dict[str, int]:
+    def _calculate_severity_breakdown(
+        self, findings: List[PydanticFinding]
+    ) -> Dict[str, int]:
         """
-        Calculate count of findings by severity level.
+        Count findings grouped by severity level.
 
         Args:
-            findings: List of all findings
+            findings: All deduplicated findings.
 
         Returns:
-            Dictionary mapping severity levels to counts
+            Dict mapping severity to count, e.g.
+            ``{"critical": 2, "high": 1, "medium": 0, "low": 3, "info": 0}``.
         """
-        breakdown = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
-
+        breakdown: Dict[str, int] = {
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+            "info": 0,
+        }
         for finding in findings:
             severity = finding.severity.lower()
             if severity in breakdown:
                 breakdown[severity] += 1
-
         return breakdown
 
     def _calculate_score(self, findings: List[PydanticFinding]) -> int:
         """
-        Calculate overall security score (0-100).
+        Compute an overall security score (0–100).
 
-        Scoring algorithm:
-        - Start at 100
-        - Subtract 10 per critical
-        - Subtract 5 per high
-        - Subtract 2 per medium
-        - Subtract 1 per low
-        - Floor at 0
+        Algorithm::
+
+            score = 100
+            score -= 10 × (# critical)
+            score -= 5  × (# high)
+            score -= 2  × (# medium)
+            score -= 1  × (# low)
+            score = max(0, score)
 
         Args:
-            findings: List of all findings
+            findings: All deduplicated findings.
 
         Returns:
-            Security score from 0 to 100
+            Integer score in the range [0, 100].
         """
         score = 100
-
-        severity_weights = {"critical": 10, "high": 5, "medium": 2, "low": 1, "info": 0}
-
         for finding in findings:
-            severity = finding.severity.lower()
-            weight = severity_weights.get(severity, 0)
-            score -= weight
-
-        # Floor at 0
+            score -= _SEVERITY_WEIGHTS.get(finding.severity.lower(), 0)
         return max(0, score)
 
     def _generate_summary(self, severity_breakdown: Dict[str, int], score: int) -> str:
         """
-        Generate a one-line summary of scan results.
+        Build a one-line human-readable scan summary.
 
         Args:
-            severity_breakdown: Count of findings by severity
-            score: Overall security score
+            severity_breakdown: Count of findings per severity level.
+            score: Overall security score.
 
         Returns:
-            Human-readable summary string
+            String such as ``"2 critical, 1 high — UNSAFE [FAIL]"``, or
+            ``"No vulnerabilities found — SAFE [OK]"`` when clean.
         """
-        critical = severity_breakdown.get("critical", 0)
-        high = severity_breakdown.get("high", 0)
-        medium = severity_breakdown.get("medium", 0)
-        low = severity_breakdown.get("low", 0)
-
-        # Build summary parts
-        parts = []
-        if critical > 0:
-            parts.append(f"{critical} critical")
-        if high > 0:
-            parts.append(f"{high} high")
-        if medium > 0:
-            parts.append(f"{medium} medium")
-        if low > 0:
-            parts.append(f"{low} low")
+        parts: List[str] = []
+        for level in ("critical", "high", "medium", "low"):
+            count = severity_breakdown.get(level, 0)
+            if count > 0:
+                parts.append(f"{count} {level}")
 
         if not parts:
-            return "No vulnerabilities found - SAFE [OK]"
+            return "No vulnerabilities found — SAFE [OK]"
 
-        findings_text = ", ".join(parts)
-
-        # Determine safety status
         if score >= 80:
             status = "GOOD [OK]"
         elif score >= 60:
@@ -391,29 +422,51 @@ class AnalysisOrchestrator:
         else:
             status = "UNSAFE [FAIL]"
 
-        return f"{findings_text} - {status}"
+        return f"{', '.join(parts)} — {status}"
 
     def _extract_contract_name(self, source_code: str) -> str:
         """
-        Extract contract name from source code.
+        Extract the primary contract name from Solidity source code.
+
+        Uses a simple regex matching ``contract <Name>``.
 
         Args:
-            source_code: Solidity source code
+            source_code: Solidity source code string.
 
         Returns:
-            Extracted contract name or "Unknown"
+            Extracted contract name, or ``"Unknown"`` if none found.
         """
-        import re
+        match = re.search(r"\bcontract\s+(\w+)", source_code)
+        return match.group(1) if match else "Unknown"
 
-        # Simple regex to find contract declarations
-        pattern = r"contract\s+(\w+)"
-        match = re.search(pattern, source_code)
-
-        if match:
-            return match.group(1)
-
-        return "Unknown"
+    # ──────────────────────────────────────────────
+    # Dunder methods
+    # ──────────────────────────────────────────────
 
     def __repr__(self) -> str:
-        """String representation of orchestrator."""
-        return f"AnalysisOrchestrator(rules={len(self.rules)}, slither_available={self.slither_wrapper.available})"
+        """Return a concise debug representation of this orchestrator."""
+        return (
+            f"AnalysisOrchestrator("
+            f"rules={len(self.rules)}, "
+            f"slither_available={self.slither_wrapper.available})"
+        )
+
+
+# ──────────────────────────────────────────────
+# Module-level utilities
+# ──────────────────────────────────────────────
+
+def _remove_temp_file(path: Optional[str]) -> None:
+    """
+    Delete a temporary file, suppressing errors if removal fails.
+
+    Args:
+        path: Absolute path to the file to remove, or ``None`` (no-op).
+    """
+    if path is None:
+        return
+    try:
+        if os.path.exists(path):
+            os.unlink(path)
+    except OSError as exc:
+        logger.debug("Could not remove temp file '%s': %s", path, exc)

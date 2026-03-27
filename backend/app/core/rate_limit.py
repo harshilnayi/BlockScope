@@ -65,9 +65,15 @@ class RateLimiter:
     Implements token bucket algorithm with Redis sorted sets.
     """
 
-    def __init__(self, redis_client: aioredis.Redis, prefix: str = "ratelimit"):
-        self.redis = redis_client
+    def __init__(self, redis_client: Optional[aioredis.Redis] = None, prefix: str = "ratelimit"):
+        self._redis = redis_client
         self.prefix = prefix
+
+    @property
+    def redis(self) -> aioredis.Redis:
+        if self._redis:
+            return self._redis
+        return rate_limit_redis.redis
 
     def _get_key(self, identifier: str, window: str) -> str:
         """
@@ -234,7 +240,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Checks rate limits before processing requests.
     """
 
-    def __init__(self, app: ASGIApp, redis_client: aioredis.Redis, enabled: bool = True):
+    def __init__(self, app: ASGIApp, redis_client: Optional[aioredis.Redis] = None, enabled: bool = True):
         super().__init__(app)
         self.limiter = RateLimiter(redis_client)
         self.enabled = enabled and settings.RATE_LIMIT_ENABLED

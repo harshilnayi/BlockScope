@@ -14,8 +14,9 @@ class SlitherWrapper:
             self.Slither = Slither
             self.available = True
         except ImportError:
-            print("⚠️  Slither not installed. Install with: pip install slither-analyzer")
+            print("[WARNING]  Slither not installed. Install with: pip install slither-analyzer")
             self.available = False
+            self.Slither = None
 
     def parse_contract(self, file_path: str):
         """
@@ -38,10 +39,10 @@ class SlitherWrapper:
         try:
             # This will parse the contract
             slither = self.Slither(str(file_path))
-            print(f"✅ Successfully parsed: {file_path.name}")
+            print(f"[OK] Successfully parsed: {file_path.name}")
             return slither
         except Exception as e:
-            print(f"❌ Error parsing contract: {e}")
+            print(f"[ERROR] Error parsing contract: {e}")
             raise
 
     def get_ast_nodes(self, slither_obj):
