@@ -9,6 +9,8 @@ from pathlib import Path
 import time
 from fastapi import Request
 
+from app.routers.health import router as health_router
+from app.routers.health import startup_complete
 from fastapi import FastAPI, Request
 from app.core.logging_config import setup_logging
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,6 +59,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+app.include_router(health_router)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -80,8 +83,13 @@ async def log_requests(request: Request, call_next):
 @app.on_event("startup")
 async def startup_event():
     """Initialize application on startup"""
+    import app.routers.health as health
+
     print("DB URL:", settings.DATABASE_URL)
     logger.info("BlockScope API starting up")
+
+    # mark startup ready
+    health.startup_complete = True
 
     # Print config summary in debug mode
     if settings.DEBUG and SECURITY_ENABLED:
