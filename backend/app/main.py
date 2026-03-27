@@ -9,6 +9,9 @@ from pathlib import Path
 import time
 from fastapi import Request
 
+from prometheus_client import generate_latest
+from fastapi.responses import Response
+from app.metrics import REQUEST_COUNT, REQUEST_LATENCY, ACTIVE_REQUESTS
 from app.routers.health import router as health_router
 from app.routers.health import startup_complete
 from fastapi import FastAPI, Request
@@ -63,6 +66,8 @@ app.include_router(health_router)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    ACTIVE_REQUESTS.inc()
+
     start = time.time()
 
     logger.info(f"→ {request.method} {request.url.path}")
@@ -70,12 +75,31 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
 
     duration = round((time.time() - start) * 1000, 2)
+
+    # logging
     logger.info(
         f"← {request.method} {request.url.path} "
         f"| status={response.status_code} | {duration}ms"
     )
 
+    # metrics
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=request.url.path,
+        status=response.status_code
+    ).inc()
+
+    REQUEST_LATENCY.labels(
+        endpoint=request.url.path
+    ).observe(duration / 1000)
+
+    ACTIVE_REQUESTS.dec()
+
     return response
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type="text/plain")
 
 # ===================================
 # STARTUP EVENTS
