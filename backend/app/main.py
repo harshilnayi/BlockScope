@@ -6,8 +6,11 @@ Secure, production-ready FastAPI application with comprehensive security feature
 import logging
 import sys
 from pathlib import Path
+import time
+from fastapi import Request
 
 from fastapi import FastAPI, Request
+from app.core.logging_config import setup_logging
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -16,7 +19,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 # Try to import security modules, fall back gracefully if not available
 try:
-    from app.core.config import print_config_summary, settings
+    from app.core.settings import settings
 
     SECURITY_ENABLED = True
 except ImportError:
@@ -42,23 +45,34 @@ except ImportError:
     scan_router = None
 
 # Setup logging
-logging.basicConfig(
-    level=logging.DEBUG if settings.DEBUG else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+setup_logging()
 logger = logging.getLogger(__name__)
-
 # ===================================
 # CREATE FASTAPI APP
-# ===================================
 app = FastAPI(
-    title=settings.APP_NAME,
-    description="Smart Contract Vulnerability Scanner with Security Features",
-    version=settings.APP_VERSION,
-    docs_url="/docs" if settings.ENABLE_API_DOCS else None,
-    redoc_url="/redoc" if settings.ENABLE_API_DOCS else None,
+    title=settings.API_TITLE,
+    description=settings.API_DESCRIPTION,
+    version=settings.API_VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.time()
+
+    logger.info(f"→ {request.method} {request.url.path}")
+
+    response = await call_next(request)
+
+    duration = round((time.time() - start) * 1000, 2)
+    logger.info(
+        f"← {request.method} {request.url.path} "
+        f"| status={response.status_code} | {duration}ms"
+    )
+
+    return response
 
 # ===================================
 # STARTUP EVENTS
@@ -66,7 +80,8 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     """Initialize application on startup"""
-    logger.info(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print("DB URL:", settings.DATABASE_URL)
+    logger.info("BlockScope API starting up")
 
     # Print config summary in debug mode
     if settings.DEBUG and SECURITY_ENABLED:
