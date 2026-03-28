@@ -35,13 +35,18 @@ export default defineConfig({
          */
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom')) {
+            const isPackage = (pkgName) => (
+              id.includes(`/node_modules/${pkgName}/`) ||
+              id.includes(`\\node_modules\\${pkgName}\\`)
+            )
+
+            if (isPackage('react') || isPackage('react-dom') || isPackage('scheduler')) {
               return 'react-vendor'
             }
             if (
-              id.includes('lucide-react') ||
-              id.includes('react-tooltip') ||
-              id.includes('react-joyride')
+              isPackage('lucide-react') ||
+              isPackage('react-tooltip') ||
+              isPackage('react-joyride')
             ) {
               return 'ui-vendor'
             }
@@ -81,6 +86,5 @@ export default defineConfig({
   // Optimize deps ahead-of-time for faster cold starts
   optimizeDeps: {
     include: ['react', 'react-dom', 'lucide-react'],
-    exclude: ['react-joyride'], // has side-effects, skip pre-bundling
   },
 })

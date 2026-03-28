@@ -20,19 +20,6 @@
     <!-- ── Favicon ──────────────────────────────────────────────────── -->
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
 
-    <!-- ── Performance hints ────────────────────────────────────────── -->
-    <!--
-      Preconnect to the backend API so the first scan request has a warmed
-      TCP/TLS connection (cuts ~100-300 ms per cold request).
-    -->
-    <link rel="preconnect" href="http://localhost:5000" crossorigin />
-
-    <!--
-      dns-prefetch is a cheaper fallback for browsers that don't support
-      preconnect (e.g. older mobile browsers).
-    -->
-    <link rel="dns-prefetch" href="http://localhost:5000" />
-
     <!-- Theme color for mobile browsers / PWA -->
     <meta name="theme-color" content="#0f172a" />
 

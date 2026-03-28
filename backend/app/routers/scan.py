@@ -17,6 +17,8 @@ Design notes:
 
 import asyncio
 import logging
+import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -56,6 +58,10 @@ except ImportError:
 # Module-level singletons
 # ----------------------------------------------
 _scan_logger = logging.getLogger("blockscope.scan")
+_SCAN_EXECUTOR = ThreadPoolExecutor(
+    max_workers=max(2, min(os.cpu_count() or 2, 4)),
+    thread_name_prefix="blockscope-scan",
+)
 
 router = APIRouter(tags=["scans"])
 
@@ -232,17 +238,20 @@ async def _run_analysis_and_persist(
     """
     ctx = {"contract_name": contract_name, "file_path": file_path, "request_id": request_id}
 
-    # -- Run analysis in thread pool (non-blocking) ----------------------------
-    # asyncio.to_thread() runs the callable in the default ThreadPoolExecutor
-    # so the event loop can serve other requests while Slither executes.
+    # -- Run analysis in a dedicated executor (non-blocking) -------------------
+    # Keep heavy contract analysis off the event loop and away from asyncio's
+    # shared default executor so unrelated async work cannot be starved.
     with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
         analysis_request = AnalysisScanRequest(
             source_code=source_code,
             contract_name=contract_name,
             file_path=file_path,
         )
-        scan_result: ScanResult = await asyncio.to_thread(
-            orchestrator.analyze, analysis_request
+        loop = asyncio.get_running_loop()
+        scan_result: ScanResult = await loop.run_in_executor(
+            _SCAN_EXECUTOR,
+            orchestrator.analyze,
+            analysis_request,
         )
 
     _scan_logger.info(
