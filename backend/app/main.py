@@ -14,9 +14,9 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -26,6 +26,14 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 sys.path.append(str(Path(__file__).parent.parent))
 
 from app.core.logger import logger, set_request_id
+
+try:
+    from app.core.auth import APIKey, get_optional_api_key
+except ImportError:  # pragma: no cover
+    APIKey = type(None)  # type: ignore[assignment,misc]
+
+    def get_optional_api_key() -> None:  # type: ignore[misc]
+        return None
 
 # ----------------------------------------------
 # Settings (with graceful fallback)
@@ -197,8 +205,11 @@ app = FastAPI(
 # Middleware stack  (order matters — added last runs first)
 # ----------------------------------------------
 
-# 0. GZip compression — smallest-first: responses >= 1 KB are compressed
-app.add_middleware(GZipMiddleware, minimum_size=1024)
+# 0. GZip compression — smallest-first: responses >= configured threshold are compressed
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=getattr(settings, "GZIP_MINIMUM_SIZE", 1024),
+)
 
 # 1. Request ID — must be first so all subsequent middleware can read the ID
 app.add_middleware(RequestIDMiddleware)
@@ -471,16 +482,31 @@ async def performance_metrics() -> Dict[str, Any]:
 
 
 @app.post("/api/v1/cache/invalidate", tags=["System"], summary="Clear analysis cache")
-async def invalidate_cache() -> Dict[str, Any]:
+async def invalidate_cache(
+    request: Request,
+    api_key: Optional[Any] = Depends(get_optional_api_key),
+) -> Dict[str, Any]:
     """
     Evict all entries from the in-memory analysis result cache.
 
     Useful after deploying new analysis rules or Slither upgrades.
-    Requires no authentication (stateless dev-friendly endpoint).
+    In debug mode this endpoint is open for local development.
+    In non-debug environments a valid API key is required.
 
     Returns:
         Dict with number of entries cleared.
     """
+    if not settings.DEBUG and not api_key:
+        if SECURITY_ENABLED:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="A valid API key is required to invalidate caches.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cache invalidation is disabled outside debug mode.",
+        )
+
     try:
         from analysis.cache import analysis_cache
         from analysis.slither_wrapper import SlitherWrapper
@@ -489,7 +515,11 @@ async def invalidate_cache() -> Dict[str, Any]:
         cleared_slither = SlitherWrapper.clear_parse_cache()
         logger.info(
             "Cache invalidated via API",
-            extra={"analysis_entries": cleared_analysis, "slither_entries": cleared_slither},
+            extra={
+                "analysis_entries": cleared_analysis,
+                "slither_entries": cleared_slither,
+                "request_id": getattr(request.state, "request_id", ""),
+            },
         )
         return {
             "analysis_cache_cleared": cleared_analysis,

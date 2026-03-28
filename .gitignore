@@ -506,6 +506,8 @@ site/
 reports/
 *.pdf
 *.docx
+backend/performance_report.json
+backend/performance_report.md
 
 # Lock files (optional - comment out if you want to commit them)
 # package-lock.json

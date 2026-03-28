@@ -11,6 +11,7 @@
 import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import ErrorBoundary from './ErrorBoundary';
+import './index.css';
 
 // ── Lazy-load the App to enable code-splitting ───────────────────────────────
 // The App chunk is only fetched when the browser is ready to render.
@@ -43,7 +44,7 @@ function AppFallback() {
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        style={{ animation: 'spin 1s linear infinite', color: '#3b82f6' }}
+        style={{ animation: 'blockscope-spin 1s linear infinite', color: '#3b82f6' }}
         aria-hidden="true"
       >
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -51,7 +52,6 @@ function AppFallback() {
       <p style={{ marginTop: '1rem', fontSize: '1.1rem', fontWeight: 600 }}>
         Loading BlockScope…
       </p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   );
 }

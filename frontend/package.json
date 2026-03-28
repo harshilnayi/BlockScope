@@ -16,7 +16,8 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-joyride": "^2.0.0",
-    "react-tooltip": "^5.x"
+    "react-tooltip": "^5.x",
+    "web-vitals": "^4.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -38,7 +39,6 @@
     "react-test-renderer": "^19.2.4",
     "tailwindcss": "^3.4.19",
     "vite": "^5.2.0",
-    "vitest": "^4.0.18",
-    "web-vitals": "^4.2.4"
+    "vitest": "^4.0.18"
   }
 }

@@ -15,22 +15,47 @@ const STATIC_CACHE  = `blockscope-static-${CACHE_VERSION}`;
 const ALL_CACHES    = [SHELL_CACHE, STATIC_CACHE];
 
 // Resources to pre-cache on install (app shell)
-const SHELL_URLS = [
-  '/',
-  '/index.html',
-];
+const SHELL_URLS = ['/', '/index.html'];
+
+async function getShellAssets() {
+  const shellAssets = new Set(SHELL_URLS);
+
+  try {
+    const response = await fetch('/index.html', { cache: 'no-store' });
+    if (!response.ok) {
+      return [...shellAssets];
+    }
+
+    const html = await response.text();
+    const assetPattern = /(?:src|href)=["'](\/assets\/[^"']+\.(?:js|css))["']/g;
+    let match = assetPattern.exec(html);
+
+    while (match) {
+      shellAssets.add(match[1]);
+      match = assetPattern.exec(html);
+    }
+  } catch (err) {
+    console.warn('[SW] Could not discover shell assets from index.html:', err);
+  }
+
+  return [...shellAssets];
+}
 
 // ── Install ──────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => {
-      return cache.addAll(SHELL_URLS).catch((err) => {
-        console.warn('[SW] Pre-cache failed (some resources may not exist yet):', err);
-      });
-    }).then(() => {
-      // Skip the waiting phase so the new SW activates immediately
-      return self.skipWaiting();
-    })
+    caches.open(SHELL_CACHE)
+      .then(async (cache) => {
+        const shellAssets = await getShellAssets();
+        await Promise.all(
+          shellAssets.map((assetUrl) => (
+            cache.add(assetUrl).catch((err) => {
+              console.warn('[SW] Pre-cache skipped for', assetUrl, err);
+            })
+          ))
+        );
+      })
+      .then(() => self.skipWaiting())
   );
 });
 

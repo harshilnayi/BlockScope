@@ -34,6 +34,12 @@ from .slither_wrapper import SlitherWrapper
 
 logger = logging.getLogger("blockscope.analysis")
 
+_ANALYSIS_WORKERS: int = max(2, min(os.cpu_count() or 2, 4))
+_ANALYSIS_POOL = ThreadPoolExecutor(
+    max_workers=_ANALYSIS_WORKERS,
+    thread_name_prefix="blockscope-analysis",
+)
+
 # Severity ordering used for deduplication sorting
 _SEVERITY_ORDER: Dict[str, int] = {
     "critical": 0,
@@ -145,30 +151,36 @@ class AnalysisOrchestrator:
             slither_findings: List[PydanticFinding] = []
             rule_findings: List[PydanticFinding] = []
 
-            with ThreadPoolExecutor(max_workers=2, thread_name_prefix="blockscope-analysis") as pool:
-                future_slither = pool.submit(self._run_slither_analysis_from_file, tmp_file_path)
-                future_rules = pool.submit(self._run_rule_analysis_from_file, tmp_file_path, request)
+            future_slither = _ANALYSIS_POOL.submit(
+                self._run_slither_analysis_from_file,
+                tmp_file_path,
+            )
+            future_rules = _ANALYSIS_POOL.submit(
+                self._run_rule_analysis_from_file,
+                tmp_file_path,
+                request,
+            )
 
-                for future in as_completed([future_slither, future_rules]):
-                    try:
-                        result_findings = future.result()
-                        if future is future_slither:
-                            slither_findings = result_findings
-                            logger.info(
-                                "Slither scan complete",
-                                extra={"finding_count": len(slither_findings)},
-                            )
-                        else:
-                            rule_findings = result_findings
-                            logger.info(
-                                "Rule scan complete",
-                                extra={"finding_count": len(rule_findings)},
-                            )
-                    except Exception as exc:
-                        logger.warning(
-                            "A concurrent analysis pass failed — continuing",
-                            exc_info=exc,
+            for future in as_completed([future_slither, future_rules]):
+                try:
+                    result_findings = future.result()
+                    if future is future_slither:
+                        slither_findings = result_findings
+                        logger.info(
+                            "Slither scan complete",
+                            extra={"finding_count": len(slither_findings)},
                         )
+                    else:
+                        rule_findings = result_findings
+                        logger.info(
+                            "Rule scan complete",
+                            extra={"finding_count": len(rule_findings)},
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "A concurrent analysis pass failed — continuing",
+                        exc_info=exc,
+                    )
 
         finally:
             _remove_temp_file(tmp_file_path)
@@ -292,33 +304,6 @@ class AnalysisOrchestrator:
         except Exception as exc:
             logger.warning("Rule analysis setup failed", exc_info=exc)
         return findings
-
-    # Keep the original single-arg signatures for callers that still use them
-    def _run_slither_analysis(self, request: ScanRequest) -> List[PydanticFinding]:
-        """Legacy wrapper — prefer :meth:`_run_slither_analysis_from_file`."""
-        tmp_file_path: Optional[str] = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".sol", delete=False, encoding="utf-8"
-            ) as tmp_file:
-                tmp_file.write(request.source_code)
-                tmp_file_path = tmp_file.name
-            return self._run_slither_analysis_from_file(tmp_file_path)
-        finally:
-            _remove_temp_file(tmp_file_path)
-
-    def _run_rule_analysis(self, request: ScanRequest) -> List[PydanticFinding]:
-        """Legacy wrapper — prefer :meth:`_run_rule_analysis_from_file`."""
-        tmp_file_path: Optional[str] = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".sol", delete=False, encoding="utf-8"
-            ) as tmp_file:
-                tmp_file.write(request.source_code)
-                tmp_file_path = tmp_file.name
-            return self._run_rule_analysis_from_file(tmp_file_path, request)
-        finally:
-            _remove_temp_file(tmp_file_path)
 
     # ----------------------------------------------
     # Private helpers — conversion
