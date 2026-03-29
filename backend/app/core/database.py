@@ -9,21 +9,18 @@ from sqlalchemy.orm import sessionmaker
 
 # Try to import settings, fall back to environment variables
 try:
-    from app.core.config import settings
+    from app.core.settings import settings  # ← changed: config → settings
 
-    DATABASE_URL = settings.database_url_sync
-    DB_POOL_SIZE = settings.DB_POOL_SIZE
-    DB_MAX_OVERFLOW = settings.DB_MAX_OVERFLOW
-    DB_POOL_TIMEOUT = settings.DB_POOL_TIMEOUT
-    DB_POOL_RECYCLE = settings.DB_POOL_RECYCLE
-    DB_ECHO = settings.DB_ECHO
+    DATABASE_URL = settings.DATABASE_URL    # ← changed: database_url_sync → DATABASE_URL
+    DB_POOL_SIZE = int(getattr(settings, "DB_POOL_SIZE", 20))
+    DB_MAX_OVERFLOW = int(getattr(settings, "DB_MAX_OVERFLOW", 10))
+    DB_POOL_TIMEOUT = int(getattr(settings, "DB_POOL_TIMEOUT", 30))
+    DB_POOL_RECYCLE = int(getattr(settings, "DB_POOL_RECYCLE", 3600))
+    DB_ECHO = getattr(settings, "SQLALCHEMY_ECHO", False)
 
 except ImportError:
-    # Fallback to environment variables if config not available
     import os
-
     from dotenv import load_dotenv
-
     load_dotenv()
 
     DATABASE_URL = os.getenv(
@@ -34,7 +31,6 @@ except ImportError:
     DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
     DB_POOL_RECYCLE = int(os.getenv("DB_POOL_RECYCLE", "3600"))
     DB_ECHO = os.getenv("DB_ECHO", "False").lower() == "true"
-
 # Create SQLAlchemy engine
 engine = create_engine(
     DATABASE_URL,
