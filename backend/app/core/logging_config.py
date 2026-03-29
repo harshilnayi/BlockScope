@@ -39,11 +39,26 @@ def setup_logging():
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
 
-    # Guard against duplicate handlers on reload
-    if not root_logger.handlers:
-        root_logger.addHandler(console_handler)
+    # Only check for OUR rotating file handlers, not any framework handlers
+    existing_files = [
+        h.baseFilename
+        for h in root_logger.handlers
+        if isinstance(h, logging.handlers.RotatingFileHandler)
+    ]
+
+    if str(LOGS_DIR / "blockscope.log") not in existing_files:
         root_logger.addHandler(file_handler)
+
+    if str(LOGS_DIR / "errors.log") not in existing_files:
         root_logger.addHandler(error_handler)
+
+    # Console handler — only add if no StreamHandler exists yet
+    if not any(
+        isinstance(h, logging.StreamHandler)
+        and not isinstance(h, logging.handlers.RotatingFileHandler)
+        for h in root_logger.handlers
+    ):
+        root_logger.addHandler(console_handler)
 
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
