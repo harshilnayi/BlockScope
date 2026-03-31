@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 # Configuration loading
 # ──────────────────────────────────────────────
 try:
-    from app.core.config import settings
+    from app.core.settings import settings
 
     DATABASE_URL: str = settings.database_url_sync
     DB_POOL_SIZE: int = settings.DB_POOL_SIZE

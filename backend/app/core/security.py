@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Callable, List, Optional
 
-from app.core.config import settings
+from app.core.settings import settings
 from fastapi import Request, Response, UploadFile
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
