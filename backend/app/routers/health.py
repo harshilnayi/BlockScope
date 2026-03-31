@@ -1,4 +1,6 @@
 import shutil
+import time
+
 import psutil
 import redis
 from fastapi import APIRouter
@@ -45,6 +47,17 @@ def check_memory():
     status = "ok" if percent_used < 80 else "warning" if percent_used < 95 else "critical"
     return {"status": status, "percent_used": percent_used, "available_mb": available_mb}
 
+def check_latency(start_time: float):
+    """Measure how long the health check itself has taken so far."""
+    elapsed_ms = round((time.time() - start_time) * 1000, 2)
+    if elapsed_ms > 5000:
+        status = "critical"
+    elif elapsed_ms > 2000:
+        status = "slow"
+    else:
+        status = "ok"
+    return {"status": status, "response_time_ms": elapsed_ms}
+
 
 @router.get("/live")
 def liveness():
@@ -53,18 +66,28 @@ def liveness():
 
 @router.get("/ready")
 def readiness():
-    db     = check_database()
-    r      = check_redis()
-    disk   = check_disk()
-    memory = check_memory()
+    start = time.time()
 
-    checks = {"database": db, "redis": r, "disk": disk, "memory": memory}
+    db      = check_database()
+    r       = check_redis()
+    disk    = check_disk()
+    memory  = check_memory()
+    latency = check_latency(start)
+
+    checks = {
+        "database": db,
+        "redis": r,
+        "disk": disk,
+        "memory": memory,
+        "latency": latency,
+    }
 
     critical = (
         db["status"] == "error"
         or r["status"] == "error"
         or disk["status"] == "critical"
         or memory["status"] == "critical"
+        or latency["status"] == "critical"
     )
 
     if critical:

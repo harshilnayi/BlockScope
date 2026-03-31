@@ -18,4 +18,21 @@ ACTIVE_REQUESTS = Gauge(
     "Active requests"
 )
 
+# NEW — cache hit rate
+CACHE_HITS = Counter(
+    "blockscope_cache_hits_total",
+    "Cache hits"
+)
+
+CACHE_MISSES = Counter(
+    "blockscope_cache_misses_total",
+    "Cache misses"
+)
+
+# NEW — active users
+ACTIVE_USERS = Gauge(
+    "blockscope_active_users",
+    "Currently active users"
+)
+
 START_TIME = time.time()
