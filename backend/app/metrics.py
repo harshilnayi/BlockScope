@@ -21,5 +21,24 @@ ACTIVE_REQUESTS = Gauge(
     "Active requests"
 )
 
+# cache metrics
+CACHE_HITS = Counter(
+    "blockscope_cache_hits_total",
+    "Total cache hits",
+    ["cache_type"]
+)
+
+CACHE_MISSES = Counter(
+    "blockscope_cache_misses_total",
+    "Total cache misses",
+    ["cache_type"]
+)
+
+# active users (authenticated sessions)
+ACTIVE_USERS = Gauge(
+    "blockscope_active_users",
+    "Currently active authenticated users"
+)
+
 # uptime
 START_TIME = time.time()

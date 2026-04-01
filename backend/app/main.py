@@ -11,7 +11,7 @@ from fastapi import Request
 
 from prometheus_client import generate_latest
 from fastapi.responses import Response
-from app.metrics import REQUEST_COUNT, REQUEST_LATENCY, ACTIVE_REQUESTS
+from app.metrics import REQUEST_COUNT, REQUEST_LATENCY, ACTIVE_REQUESTS, CACHE_HITS, CACHE_MISSES, ACTIVE_USERS
 from app.routers.health import router as health_router
 from app.routers.health import startup_complete
 from fastapi import FastAPI, Request
@@ -72,6 +72,11 @@ async def log_requests(request: Request, call_next):
 
     logger.info(f"→ {request.method} {request.url.path}")
 
+    # Track authenticated users via API key header
+    api_key = request.headers.get("X-API-Key")
+    if api_key:
+        ACTIVE_USERS.inc()
+
     response = await call_next(request)
 
     duration = round((time.time() - start) * 1000, 2)
@@ -94,6 +99,9 @@ async def log_requests(request: Request, call_next):
     ).observe(duration / 1000)
 
     ACTIVE_REQUESTS.dec()
+
+    if api_key:
+        ACTIVE_USERS.dec()
 
     return response
 

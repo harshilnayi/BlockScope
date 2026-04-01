@@ -8,7 +8,7 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
-from app.core.config import settings
+from app.core.settings import settings
 from app.core.database import Base, get_db
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader

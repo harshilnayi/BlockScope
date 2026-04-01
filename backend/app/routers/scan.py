@@ -3,9 +3,11 @@ BlockScope Scan Router - Security Upgraded
 Maintains existing scan logic while adding security features
 """
 
+import hashlib
 from datetime import datetime
-
 from typing import Optional
+
+from app.metrics import CACHE_HITS, CACHE_MISSES
 
 # Import existing modules (keep your structure)
 from analysis import AnalysisOrchestrator
@@ -38,6 +40,9 @@ except ImportError:
 
 
 router = APIRouter(tags=["scans"])
+
+# In-memory scan result cache keyed by source code hash
+_scan_cache: dict[str, dict] = {}
 
 # Initialize orchestrator once at module load
 orchestrator = AnalysisOrchestrator(rules=[])
@@ -108,6 +113,14 @@ async def scan_contract(
                 status_code=400, detail="Source code too large. Maximum 500KB allowed."
             )
 
+        # Check cache before running analysis
+        source_hash = hashlib.sha256(source_code.encode()).hexdigest()
+        cached = _scan_cache.get(source_hash)
+        if cached:
+            CACHE_HITS.labels(cache_type="scan").inc()
+            return ScanResponse(**cached)
+        CACHE_MISSES.labels(cache_type="scan").inc()
+
         # 1. Create ScanRequest from API input (your existing logic)
         scan_request = AnalysisScanRequest(
             source_code=source_code, contract_name=contract_name, file_path="api_upload"
@@ -145,7 +158,7 @@ async def scan_contract(
         db.refresh(scan_record)
 
         # 6. Return response with database ID (your existing logic)
-        return ScanResponse(
+        response_data = dict(
             contract_name=scan_result.contract_name,
             vulnerabilities_count=scan_result.vulnerabilities_count,
             severity_breakdown=scan_result.severity_breakdown,
@@ -155,6 +168,11 @@ async def scan_contract(
             timestamp=scan_record.scanned_at,
             scan_id=scan_record.id,
         )
+
+        # Store in cache for future hits
+        _scan_cache[source_hash] = response_data
+
+        return ScanResponse(**response_data)
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}")
