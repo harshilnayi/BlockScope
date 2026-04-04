@@ -130,6 +130,16 @@ async def startup_event():
         except Exception:
             pass
 
+    # Initialize logging configuration
+    try:
+        from app.core.logging_config import setup_logging
+        setup_logging()
+        logger.info("Logging configured with rotation")
+    except ImportError:
+        logger.warning("Logging configuration module not available")
+    except Exception as exc:
+        logger.warning("Logging configuration failed: %s", exc)
+
     # Connect to Redis if security enabled
     if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
         try:
