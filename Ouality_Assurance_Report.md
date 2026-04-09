@@ -1,8 +1,8 @@
 # BlockScope — Quality Assurance Report 
 
-**Project:** BlockScope — Smart Contract Vulnerability Scanner  
-**QA Scope:** Manual Testing, UAT, Bug Fixing Support   
-**Author:** ManasviJ15  
+**Project:** BlockScope — Smart Contract Vulnerability Scanner
+**QA Scope:** Manual Testing, UAT, Bug Fixing Support (32 hours)
+**Author:** ManasviJ15
 **Date:** April 9, 2026
 
 ---
@@ -46,7 +46,7 @@ pytest -v
 
 ---
 
-## 3. Detailed Test Report (Sample of 54+ Cases)
+## 3. Detailed Test Report (50+ Cases)
 
 ### 3.1 API Manual Test Cases
 
@@ -60,17 +60,20 @@ pytest -v
 
 ---
 
-### 3.2 Backend Functional Tests
+### 3.2 Backend Functional Coverage
 
-| TC ID           | Scenario        | Result |
-| --------------- | --------------- | ------ |
-| TC-006 – TC-020 | DB + Models     | PASS   |
-| TC-021 – TC-035 | Scanner logic   | PASS   |
-| TC-036 – TC-045 | Slither wrapper | PASS   |
+Representative tests executed covering:
+
+* Database operations
+* Models and schema validation
+* Scanner logic
+* Slither integration
+
+All above categories passed successfully except where reflected in failing integration/API tests.
 
 ---
 
-### 3.3 Integration Tests
+### 3.3 Integration & Edge Case Tests
 
 | TC ID  | Scenario           | Result |
 | ------ | ------------------ | ------ |
@@ -79,25 +82,16 @@ pytest -v
 | TC-048 | DB rollback        | FAIL   |
 | TC-049 | Concurrent scans   | FAIL   |
 | TC-050 | Dependency failure | FAIL   |
-
----
-
-### 3.4 Edge Case Tests
-
-| TC ID  | Scenario         | Result |
-| ------ | ---------------- | ------ |
-| TC-051 | Empty input      | FAIL   |
-| TC-052 | Very large input | PASS   |
-| TC-053 | Rapid requests   | FAIL   |
-| TC-054 | Invalid JSON     | ERROR  |
+| TC-051 | Empty input        | FAIL   |
+| TC-052 | Large input        | PASS   |
+| TC-053 | Rapid requests     | FAIL   |
+| TC-054 | Invalid JSON       | ERROR  |
 
 ---
 
 ## 4. Manual Testing (User Flows — API Level)
 
-Since frontend is not deployed, user flows were tested via API.
-
-**Flows Covered:**
+Frontend unavailable, so flows tested via API:
 
 * Upload contract → scan
 * Error handling
@@ -110,41 +104,42 @@ Since frontend is not deployed, user flows were tested via API.
 
 **Status:** Frontend deployment unavailable (404)
 
-**Findings:**
+**Conclusion:**
 
-* UI behavior not verifiable
-* API dependency confirmed
-* No accessibility validation possible
+* UI testing not executable
+* API dependency verified
+* No UI/accessibility validation possible
 
 ---
 
 ## 6. Accessibility Testing (Limited)
 
-**Method:** Code inspection
+**Method:** Code inspection only
 
-**Findings:**
+**Conclusion:**
 
-* Accessibility not verifiable without UI
-* No keyboard or screen reader testing possible
+* Accessibility cannot be verified without UI
+* Keyboard, ARIA, and screen reader testing not executable
 
 ---
 
 ## 7. User Acceptance Testing (UAT)
 
-**Participants:** 2 sample users (peer testing)
+**Participants:** 2 peer testers
+**Environment:** API-level interaction (no UI available)
 
-**Scenarios:**
+### Scenarios:
 
 1. Upload contract
 2. Analyze output
 3. Handle errors
 
-**Feedback:**
+### Feedback:
 
 > User 1: “Tool works but error messages are unclear.”
 > User 2: “Upload works, but unclear when scan fails.”
 
-**Issues Identified:**
+### Issues Identified:
 
 * Poor error messaging
 * No clear failure indication
@@ -153,45 +148,56 @@ Since frontend is not deployed, user flows were tested via API.
 
 ## 8. Bug List with Priority & Status
 
-| ID          | Issue                | Priority | Status |
-| ----------- | -------------------- | -------- | ------ |
-| BUG-002     | Empty file accepted  | P1       | Open   |
-| BUG-007     | False safe result    | P1       | Open   |
-| BUG-004     | Missing timestamp    | P2       | Open   |
-| BUG-005     | solc dependency      | P2       | Open   |
-| BUG-006     | DB lock              | P2       | Open   |
-| BUG-009     | Scan failure unclear | P2       | Open   |
-| BUG-010–013 | Debug artifacts      | P3       | Open   |
+| ID          | Issue                | Priority | Status           |
+| ----------- | -------------------- | -------- | ---------------- |
+| BUG-002     | Empty file accepted  | P1       | Open (not fixed) |
+| BUG-007     | False safe result    | P1       | Open (not fixed) |
+| BUG-004     | Missing timestamp    | P2       | Open (not fixed) |
+| BUG-005     | solc dependency      | P2       | Open (not fixed) |
+| BUG-006     | DB lock              | P2       | Open (not fixed) |
+| BUG-009     | Scan failure unclear | P2       | Open (not fixed) |
+| BUG-010–013 | Debug artifacts      | P3       | Open (not fixed) |
 
 ---
 
 ## 9. Bug Fixing Support
 
-**Completed:**
+### Completed:
 
 * Bug reproduction
 * Root cause identification
 * Documentation of steps
 
-**Pending:**
+### Fix Verification:
 
-* Fix verification
-* Post-fix regression
+Fixes were not available at the time of testing.
+
+**Planned Verification Process:**
+
+* Re-run failing test cases after fixes
+* Validate expected vs actual behavior
+* Update bug status to “Verified”
 
 ---
 
 ## 10. Regression Testing
 
-**Command:**
+**Executed using:**
 
 ```bash
 pytest -v
 ```
 
-**Outcome:**
+**Result:**
+
+* 57 tests passed
+* 12 tests failed
+* 1 error
+
+**Conclusion:**
 
 * Existing failures confirmed
-* No new regressions observed
+* No new regressions introduced
 
 ---
 
@@ -239,5 +245,5 @@ Frontend QA remains limited due to unavailable deployment.
 
 ## 14. PR Note
 
-Frontend unavailable (404).  
+Frontend unavailable (404).
 UI testing limited; API-level QA completed fully.
