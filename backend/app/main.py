@@ -247,45 +247,6 @@ async def internal_error_handler(request: Request, exc):
         },
     )
 
-
-# ===================================
-# HEALTH & INFO ENDPOINTS
-# ===================================
-
-
-@app.get("/health", tags=["System"])
-async def health_check():
-    """
-    Health check endpoint for monitoring and load balancers.
-
-    Returns:
-        dict: Health status and version info
-    """
-    health_status = {"status": "healthy", "version": settings.APP_VERSION, "app": settings.APP_NAME}
-
-    # Check database
-    try:
-        from app.core.database import engine
-
-        with engine.connect():
-            health_status["database"] = "connected"
-    except Exception:
-        health_status["database"] = "disconnected"
-        health_status["status"] = "degraded"
-
-    # Check Redis
-    if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
-        try:
-            from app.core.rate_limit import rate_limit_redis
-
-            await rate_limit_redis.redis.ping()
-            health_status["redis"] = "connected"
-        except:
-            health_status["redis"] = "disconnected"
-
-    return health_status
-
-
 @app.get("/", tags=["System"])
 async def root():
     """
