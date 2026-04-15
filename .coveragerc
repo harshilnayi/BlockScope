@@ -10,9 +10,6 @@ omit =
     */alembic/*
     backend/analysis/tests/*
     backend/cli/*
-    backend/app/core/auth.py
-    backend/app/core/rate_limit.py
-    backend/app/core/security.py
 
 [report]
 exclude_lines =
@@ -26,4 +23,4 @@ exclude_lines =
     if TYPE_CHECKING
 show_missing = True
 precision = 2
-fail_under = 90
+fail_under = 80

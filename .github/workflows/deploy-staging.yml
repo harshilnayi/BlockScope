@@ -24,8 +24,8 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/shanaysoni/blockscope/backend
-  FRONTEND_IMAGE: ghcr.io/shanaysoni/blockscope/frontend
+  BACKEND_IMAGE: ghcr.io/harshilnayi/blockscope/backend
+  FRONTEND_IMAGE: ghcr.io/harshilnayi/blockscope/frontend
 
 jobs:
   build:
