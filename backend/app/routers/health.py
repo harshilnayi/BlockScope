@@ -2,7 +2,12 @@ import shutil
 import time
 
 import psutil
-import redis
+try:
+    import redis as _redis_module
+    _REDIS_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _redis_module = None  # type: ignore[assignment]
+    _REDIS_AVAILABLE = False
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -26,8 +31,10 @@ def check_database():
 
 
 def check_redis():
+    if not _REDIS_AVAILABLE:
+        return {"status": "unavailable", "detail": "redis package not installed"}
     try:
-        r = redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+        r = _redis_module.from_url(settings.REDIS_URL, socket_connect_timeout=2)
         r.ping()
         return {"status": "ok"}
     except Exception as e:

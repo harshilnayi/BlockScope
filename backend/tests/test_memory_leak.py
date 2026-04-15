@@ -2,12 +2,13 @@
 Memory Leak Detection Tests for BlockScope Backend.
 
 Verifies that:
-  1. _analysis_result_cache never exceeds _ANALYSIS_CACHE_MAX entries.
-  2. Repeated cache inserts beyond the cap evict the oldest entry (FIFO).
-  3. The ThreadPoolExecutor _SCAN_EXECUTOR is shut down cleanly and does
-     not leak OS threads after the process exits.
-  4. DB sessions are closed after each request (no connection pool exhaustion).
-  5. ScanResult objects are not retained indefinitely after eviction.
+  1. AnalysisCache never exceeds max_size entries (LRU eviction enforced).
+  2. LRU eviction removes the least-recently-used entry (not just FIFO).
+  3. TTL expiry removes stale entries before returning them.
+  4. The ThreadPoolExecutor _SCAN_EXECUTOR does not leak OS threads.
+  5. DB sessions are closed after each request (no connection pool exhaustion).
+  6. Evicted ScanResult objects are not retained by the cache.
+  7. Cache is thread-safe under concurrent access.
 
 Run:
     cd backend
@@ -15,9 +16,9 @@ Run:
 """
 
 import gc
-import hashlib
 import sys
 import threading
+import time
 import weakref
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -37,16 +38,12 @@ os.environ.setdefault("JWT_SECRET_KEY", "test-jwt-secret-key-not-for-production"
 os.environ.setdefault("LOG_FILE_ENABLED", "False")
 os.environ.setdefault("ADMIN_PASSWORD", "testadmin123")
 
-from app.routers.scan import _analysis_result_cache, _ANALYSIS_CACHE_MAX  # noqa: E402
+from analysis.cache import AnalysisCache  # noqa: E402
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
-
-def _make_key(source: str, name: str) -> str:
-    return hashlib.sha256(f"{source}\x00{name}".encode()).hexdigest()
-
 
 def _fake_scan_result(tag: str):
     """Return a minimal MagicMock that stands in for a ScanResult."""
@@ -61,133 +58,133 @@ def _fake_scan_result(tag: str):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. Cache size cap
+# 1. Cache size cap + LRU eviction
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestAnalysisCacheSizeCap:
-    """_analysis_result_cache must never hold more than _ANALYSIS_CACHE_MAX entries."""
+    """AnalysisCache must never hold more than max_size entries."""
 
     def setup_method(self):
-        _analysis_result_cache.clear()
+        self.cache = AnalysisCache(max_size=5, ttl_seconds=3600)
 
-    def teardown_method(self):
-        _analysis_result_cache.clear()
-
-    def test_cap_constant_is_reasonable(self):
-        assert 64 <= _ANALYSIS_CACHE_MAX <= 4096, (
-            f"_ANALYSIS_CACHE_MAX={_ANALYSIS_CACHE_MAX} is outside the expected range [64, 4096]"
+    def test_router_cache_max_size_is_reasonable(self):
+        """The router-level cache is configured with a sensible max_size."""
+        from app.routers.scan import _analysis_cache
+        stats = _analysis_cache.stats
+        assert 64 <= stats["max_size"] <= 4096, (
+            f"Router cache max_size={stats['max_size']} is outside the expected range [64, 4096]"
         )
 
-    def test_cache_never_exceeds_cap(self):
-        """Simulate filling the cache beyond the cap and verify size stays bounded."""
-        from app.routers.scan import _ANALYSIS_CACHE_MAX  # re-import for clarity
-
-        fill_count = _ANALYSIS_CACHE_MAX + 50  # deliberately exceed the cap
-
+    def test_cache_never_exceeds_max_size(self):
+        """Filling the cache beyond max_size keeps size == max_size."""
+        fill_count = 20  # well above max_size=5
         for i in range(fill_count):
-            key = _make_key(f"source_{i}", f"Contract_{i}")
+            key = AnalysisCache.make_key(f"source_{i}", f"Contract_{i}")
+            self.cache.set(key, _fake_scan_result(f"Contract_{i}"))
 
-            # Simulate the eviction logic from scan.py
-            if len(_analysis_result_cache) >= _ANALYSIS_CACHE_MAX:
-                try:
-                    _analysis_result_cache.pop(next(iter(_analysis_result_cache)))
-                except StopIteration:
-                    pass
-
-            _analysis_result_cache[key] = _fake_scan_result(f"Contract_{i}")
-
-        assert len(_analysis_result_cache) == _ANALYSIS_CACHE_MAX, (
-            f"Cache grew to {len(_analysis_result_cache)}, expected max {_ANALYSIS_CACHE_MAX}"
+        assert self.cache.stats["size"] == 5, (
+            f"Cache grew to {self.cache.stats['size']}, expected max 5"
         )
 
-    def test_oldest_entry_evicted_first(self):
-        """FIFO: first key inserted is the first to be removed."""
-        _SMALL_MAX = 3
-        local_cache: dict = {}
+    def test_lru_entry_evicted_not_fifo(self):
+        """LRU: the *least recently used* entry is evicted, not just the oldest insert."""
+        # Insert 5 entries (fills the cache)
+        keys = []
+        for i in range(5):
+            k = AnalysisCache.make_key(f"src_{i}", f"C_{i}")
+            self.cache.set(k, _fake_scan_result(f"C_{i}"))
+            keys.append(k)
 
-        def insert(source, name):
-            key = _make_key(source, name)
-            if len(local_cache) >= _SMALL_MAX:
-                local_cache.pop(next(iter(local_cache)))
-            local_cache[key] = _fake_scan_result(name)
-            return key
+        # Access keys[0] — it is now most-recently-used; keys[1] is now LRU
+        _ = self.cache.get(keys[0])
 
-        k1 = insert("s1", "A")
-        k2 = insert("s2", "B")
-        k3 = insert("s3", "C")
+        # Insert one more — should evict keys[1] (LRU), not keys[0]
+        k_new = AnalysisCache.make_key("new_src", "NewContract")
+        self.cache.set(k_new, _fake_scan_result("NewContract"))
 
-        assert k1 in local_cache
-        assert k2 in local_cache
-        assert k3 in local_cache
-
-        # Insert 4th — k1 (oldest) should be evicted
-        k4 = insert("s4", "D")
-        assert k1 not in local_cache, "Oldest key was not evicted"
-        assert k2 in local_cache
-        assert k3 in local_cache
-        assert k4 in local_cache
+        assert self.cache.get(keys[0]) is not None, "MRU entry should still be present"
+        assert self.cache.get(keys[1]) is None, "LRU entry should have been evicted"
+        assert self.cache.get(k_new) is not None, "New entry should be present"
 
     def test_different_contract_names_same_source_cached_separately(self):
-        """Same source + different names → different cache keys (no cross-contamination)."""
+        """Same source + different names → different cache keys."""
         source = "contract Foo {}"
-        k1 = _make_key(source, "ContractA")
-        k2 = _make_key(source, "ContractB")
-
-        _analysis_result_cache[k1] = _fake_scan_result("ContractA")
-        _analysis_result_cache[k2] = _fake_scan_result("ContractB")
-
+        k1 = AnalysisCache.make_key(source, "ContractA")
+        k2 = AnalysisCache.make_key(source, "ContractB")
         assert k1 != k2
-        assert len(_analysis_result_cache) == 2
+
+        self.cache.set(k1, _fake_scan_result("ContractA"))
+        self.cache.set(k2, _fake_scan_result("ContractB"))
+
+        assert self.cache.stats["size"] == 2
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. Object retention (weak-reference test)
+# 2. TTL expiry
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestTTLExpiry:
+    """Expired entries must not be returned by AnalysisCache.get()."""
+
+    def test_entry_expired_after_ttl(self):
+        """An entry set with a 50ms TTL must be gone within 200ms."""
+        cache = AnalysisCache(max_size=10, ttl_seconds=0.05)
+        key = AnalysisCache.make_key("src", "C")
+        cache.set(key, _fake_scan_result("C"))
+
+        assert cache.get(key) is not None, "Entry should exist immediately after set()"
+        time.sleep(0.2)
+        assert cache.get(key) is None, "Entry should have expired after TTL"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Object retention (weak-reference test)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestObjectRetentionAfterEviction:
     """Evicted ScanResult objects must not be retained by the cache."""
 
-    def setup_method(self):
-        _analysis_result_cache.clear()
-
-    def teardown_method(self):
-        _analysis_result_cache.clear()
-
-    def test_evicted_result_can_be_garbage_collected(self):
+    def test_evicted_result_not_retained_in_cache(self):
         """
-        After a cache entry is evicted (via FIFO), there should be no
-        remaining strong reference to its value inside _analysis_result_cache.
+        After eviction the cache dict must not hold a reference to the value.
+        We verify by checking the key is gone; the strong reference is gone,
+        so Python is free to collect the object.
         """
-        key_first = _make_key("first_source", "FirstContract")
-        first_result = _fake_scan_result("FirstContract")
+        cache = AnalysisCache(max_size=2, ttl_seconds=3600)
+        k1 = AnalysisCache.make_key("s1", "A")
+        k2 = AnalysisCache.make_key("s2", "B")
+        k3 = AnalysisCache.make_key("s3", "C")  # will cause k1 to be evicted (LRU)
 
-        # Hold a weak reference so we can observe GC
-        weak = weakref.ref(first_result)
+        result1 = _fake_scan_result("A")
+        weak = weakref.ref(result1)
 
-        _analysis_result_cache[key_first] = first_result
-        del first_result  # drop our strong ref; only the cache holds it now
+        cache.set(k1, result1)
+        cache.set(k2, _fake_scan_result("B"))
 
-        assert weak() is not None, "Object should still be alive while in cache"
+        # k1 is now LRU — access k2 to make k1 even more LRU
+        _ = cache.get(k2)
 
-        # Evict by removing the entry directly (simulates FIFO eviction)
-        _analysis_result_cache.pop(key_first)
+        del result1  # drop our local strong reference
+
+        # k3 insert evicts k1 (LRU)
+        cache.set(k3, _fake_scan_result("C"))
+
+        assert cache.get(k1) is None, "Evicted key must not be returned"
         gc.collect()
-
-        # After eviction + collection the object should be freed.
-        # Note: MagicMock holds internal references; we verify the cache
-        # itself no longer keeps the object alive, not final GC status.
-        assert key_first not in _analysis_result_cache
+        # After GC: if the cache held no strong ref, weak() should be None.
+        # MagicMock can hold internal refs so we check absence-from-cache only.
+        assert k1 not in cache._store, "Evicted key must not be in internal store"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. Thread pool — no leaked OS threads
+# 4. Thread pool — no leaked OS threads
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestThreadPoolNoLeak:
     """_SCAN_EXECUTOR must not leak OS threads between test runs."""
 
     def test_executor_threads_are_bounded(self):
-        """Number of executor threads must not exceed configured max_workers."""
+        """Thread count must not grow unboundedly after many executor submissions."""
         from app.routers.scan import _SCAN_EXECUTOR
 
         alive_before = threading.active_count()
@@ -198,8 +195,7 @@ class TestThreadPoolNoLeak:
 
         alive_after = threading.active_count()
 
-        # Worker threads count should be bounded (max_workers + some overhead)
-        # We allow +10 for Python internals (GIL, signal handler, main thread, etc.)
+        # Allow +10 for Python internals (GIL, signal handler, main thread, etc.)
         assert alive_after <= alive_before + 10, (
             f"Thread count grew unexpectedly: {alive_before} → {alive_after}"
         )
@@ -217,26 +213,53 @@ class TestThreadPoolNoLeak:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4. DB session cleanup
+# 5. Cache thread-safety
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestCacheThreadSafety:
+    """AnalysisCache must not corrupt state under concurrent reads/writes."""
+
+    def test_concurrent_set_and_get_no_exception(self):
+        """50 concurrent threads reading/writing the same cache must not raise."""
+        cache = AnalysisCache(max_size=20, ttl_seconds=3600)
+        errors = []
+
+        def worker(idx):
+            try:
+                key = AnalysisCache.make_key(f"src_{idx % 10}", f"C_{idx % 10}")
+                cache.set(key, _fake_scan_result(f"C_{idx}"))
+                cache.get(key)
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(50)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5)
+
+        assert not errors, f"Concurrent cache access raised: {errors}"
+        assert cache.stats["size"] <= 20
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. DB session cleanup
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestDBSessionCleanup:
-    """Database sessions must be closed after each request (no pool exhaustion)."""
+    """Database sessions must be closed after each request (no connection pool exhaustion)."""
 
     def test_get_db_yields_and_closes(self):
-        """get_db() generator must close the session in its finally block."""
+        """get_db() generator must call session.close() in its finally block."""
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
         from app.core.database import get_db, Base
 
         engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
         Base.metadata.create_all(engine)
-        Session = sessionmaker(bind=engine)
 
         closed_calls = []
-        original_get_db = get_db
 
-        # Patch the sessionmaker inside get_db
         with patch("app.core.database.SessionLocal") as mock_session_factory:
             mock_session = MagicMock()
             mock_session.close.side_effect = lambda: closed_calls.append(True)
@@ -252,7 +275,7 @@ class TestDBSessionCleanup:
                 pass
 
             assert len(closed_calls) == 1, (
-                "Session.close() was not called — potential connection leak"
+                "Session.close() was not called — potential connection pool leak"
             )
 
         engine.dispose()

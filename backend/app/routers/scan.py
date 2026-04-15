@@ -16,7 +16,6 @@ Design notes:
 """
 
 import asyncio
-import hashlib
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -29,23 +28,22 @@ from sqlalchemy.orm import Session
 from analysis import AnalysisOrchestrator
 from analysis import ScanRequest as AnalysisScanRequest
 from analysis.models import ScanResult
+from analysis.cache import AnalysisCache
 from app.core.database import get_by_id, get_db, paginate
 from app.core.logger import PerformanceTimer, log_error_context, logger
 from app.models.scan import Scan
 from app.schemas.scan_schema import ScanRequest, ScanResponse
 from app.metrics import CACHE_HITS, CACHE_MISSES   
 
-# Analysis-result cache: maps SHA-256(source_code \x00 contract_name) -> ScanResult.
-# We deliberately cache the *analysis result* only, not the final ScanResponse.
-# This means every request still inserts its own DB row and receives its own
-# scan_id, but the expensive Slither/Semgrep analysis is only run once per
-# unique (source, contract) pair.
-#
-# Size is capped at _ANALYSIS_CACHE_MAX entries; the oldest entry is evicted
-# when the cap is reached (FIFO approximation — good enough for a process-local
-# cache where the useful working set is small).
-_ANALYSIS_CACHE_MAX = 512
-_analysis_result_cache: dict[str, ScanResult] = {}
+# Router-level analysis cache.
+# Uses the existing AnalysisCache class (analysis/cache.py) which provides:
+#   - LRU eviction via OrderedDict
+#   - TTL-based expiry (default 30 min)
+#   - Thread-safety via threading.Lock
+#   - Hit/miss statistics accessible via .stats
+# Every request still inserts its own DB row so each caller gets a unique
+# scan_id; only the expensive Slither analysis is de-duplicated.
+_analysis_cache = AnalysisCache(max_size=512, ttl_seconds=1_800)
 
 # ----------------------------------------------
 # Security modules (optional, graceful fallback)
@@ -254,14 +252,12 @@ async def _run_analysis_and_persist(
 
     # Cache key: SHA-256 of (source_code, contract_name) so two differently-named
     # contracts with identical source are each cached independently.
-    cache_key = hashlib.sha256(
-        f"{source_code}\x00{contract_name}".encode("utf-8")
-    ).hexdigest()
+    cache_key = AnalysisCache.make_key(source_code, contract_name)
 
-    # Try to serve the analysis result from cache.
-    # Even on a cache hit we still persist a fresh DB row so every caller
-    # gets their own scan_id and their own history record.
-    cached_result: Optional[ScanResult] = _analysis_result_cache.get(cache_key)
+    # Try the analysis cache first.
+    # Even on a hit we still persist a fresh DB row so every caller gets
+    # their own scan_id and their own history record.
+    cached_result: Optional[ScanResult] = _analysis_cache.get(cache_key)
     if cached_result is not None:
         CACHE_HITS.labels(cache_type="scan").inc()
         _scan_logger.info("Analysis cache hit — skipping Slither, persisting new DB row", extra=ctx)
@@ -284,13 +280,7 @@ async def _run_analysis_and_persist(
                 analysis_request,
             )
         # Populate the analysis cache for future callers.
-        # Evict the oldest entry if the cache is at capacity.
-        if len(_analysis_result_cache) >= _ANALYSIS_CACHE_MAX:  # pragma: no cover
-            try:
-                _analysis_result_cache.pop(next(iter(_analysis_result_cache)))
-            except StopIteration:
-                pass
-        _analysis_result_cache[cache_key] = scan_result
+        _analysis_cache.set(cache_key, scan_result)
 
     _scan_logger.info(
         "Analysis complete",
