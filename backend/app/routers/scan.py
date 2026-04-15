@@ -16,6 +16,7 @@ Design notes:
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -34,7 +35,17 @@ from app.models.scan import Scan
 from app.schemas.scan_schema import ScanRequest, ScanResponse
 from app.metrics import CACHE_HITS, CACHE_MISSES   
 
-_scan_cache: dict[str, dict] = {} 
+# Analysis-result cache: maps SHA-256(source_code \x00 contract_name) -> ScanResult.
+# We deliberately cache the *analysis result* only, not the final ScanResponse.
+# This means every request still inserts its own DB row and receives its own
+# scan_id, but the expensive Slither/Semgrep analysis is only run once per
+# unique (source, contract) pair.
+#
+# Size is capped at _ANALYSIS_CACHE_MAX entries; the oldest entry is evicted
+# when the cap is reached (FIFO approximation — good enough for a process-local
+# cache where the useful working set is small).
+_ANALYSIS_CACHE_MAX = 512
+_analysis_result_cache: dict[str, ScanResult] = {}
 
 # ----------------------------------------------
 # Security modules (optional, graceful fallback)
@@ -241,30 +252,45 @@ async def _run_analysis_and_persist(
     """
     ctx = {"contract_name": contract_name, "file_path": file_path, "request_id": request_id}
 
-    # Cache key (based on source code)
-    cache_key = source_code
+    # Cache key: SHA-256 of (source_code, contract_name) so two differently-named
+    # contracts with identical source are each cached independently.
+    cache_key = hashlib.sha256(
+        f"{source_code}\x00{contract_name}".encode("utf-8")
+    ).hexdigest()
 
-    # Check cache first
-    if cache_key in _scan_cache:
+    # Try to serve the analysis result from cache.
+    # Even on a cache hit we still persist a fresh DB row so every caller
+    # gets their own scan_id and their own history record.
+    cached_result: Optional[ScanResult] = _analysis_result_cache.get(cache_key)
+    if cached_result is not None:
         CACHE_HITS.labels(cache_type="scan").inc()
-        _scan_logger.info("Cache hit", extra=ctx)
-        return _scan_cache[cache_key]
-
+        _scan_logger.info("Analysis cache hit — skipping Slither, persisting new DB row", extra=ctx)
+        scan_result = cached_result
+    else:
+        CACHE_MISSES.labels(cache_type="scan").inc()
     # -- Run analysis in a dedicated executor (non-blocking) -------------------
-    # Keep heavy contract analysis off the event loop and away from asyncio's
-    # shared default executor so unrelated async work cannot be starved.
-    with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
-        analysis_request = AnalysisScanRequest(
-            source_code=source_code,
-            contract_name=contract_name,
-            file_path=file_path,
-        )
-        loop = asyncio.get_running_loop()
-        scan_result: ScanResult = await loop.run_in_executor(
-            _SCAN_EXECUTOR,
-            orchestrator.analyze,
-            analysis_request,
-        )
+    # Only executed when there is no cached analysis result.
+    if cached_result is None:
+        with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
+            analysis_request = AnalysisScanRequest(
+                source_code=source_code,
+                contract_name=contract_name,
+                file_path=file_path,
+            )
+            loop = asyncio.get_running_loop()
+            scan_result = await loop.run_in_executor(
+                _SCAN_EXECUTOR,
+                orchestrator.analyze,
+                analysis_request,
+            )
+        # Populate the analysis cache for future callers.
+        # Evict the oldest entry if the cache is at capacity.
+        if len(_analysis_result_cache) >= _ANALYSIS_CACHE_MAX:  # pragma: no cover
+            try:
+                _analysis_result_cache.pop(next(iter(_analysis_result_cache)))
+            except StopIteration:
+                pass
+        _analysis_result_cache[cache_key] = scan_result
 
     _scan_logger.info(
         "Analysis complete",
@@ -275,26 +301,25 @@ async def _run_analysis_and_persist(
         },
     )
 
-    # -- Persist to DB (sync, but fast < 5 ms) --------------------------------
+    # -- Always persist a fresh DB row -----------------------------------------
+    # This ensures every caller gets a unique scan_id and their own history
+    # entry, regardless of whether the analysis result came from cache.
     with PerformanceTimer("db_persist_scan", _scan_logger, extra=ctx):
         findings_json = _findings_to_json(scan_result)
         scan_record = _build_scan_record(scan_result, findings_json)
+        # Overwrite contract_name with the caller-supplied value so the DB
+        # record reflects what *this* caller asked for, not the cached result.
+        scan_record.contract_name = contract_name
         db.add(scan_record)
         db.commit()
-        db.refresh(scan_record) 
+        db.refresh(scan_record)
 
     _scan_logger.info(
         "Scan persisted",
         extra={**ctx, "scan_id": scan_record.id},
     )
 
-    response = _scan_record_to_response(scan_record)
-
-    # Store in cache
-    _scan_cache[cache_key] = response
-    CACHE_MISSES.labels(cache_type="scan").inc()
-
-    return response
+    return _scan_record_to_response(scan_record)
 
 
 # ----------------------------------------------

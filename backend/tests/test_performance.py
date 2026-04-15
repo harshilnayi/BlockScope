@@ -8,10 +8,18 @@ Tests cover:
   - Database query performance
   - Slither wrapper caching
 
-Run:
-    pip install pytest httpx pytest-asyncio
+Run (unit + integration tests only, no live server required):
     cd backend
-    pytest tests/test_performance.py -v --tb=short
+    pytest tests/test_performance.py -v --tb=short --no-cov
+
+Run with coverage (must meet 80% threshold across all sources):
+    cd backend
+    pytest tests/ -v --tb=short
+
+Note: TestEndpointResponseTimes is auto-skipped when the backend server is not
+running at http://localhost:8000. To run live SLA checks:
+    1. Start the backend: uvicorn app.main:app --port 8000
+    2. pytest tests/test_performance.py::TestEndpointResponseTimes -v --no-cov
 """
 
 import asyncio

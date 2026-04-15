@@ -193,15 +193,15 @@ contract SafeContract {
 
 const FindingCard = ({ finding }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [copySuccess, setCopySuccess] = useState('idle');
+  const [copyState, setCopyState] = useState('idle');
   const copyTimerRef = useRef(null);
   useEffect(() => () => clearTimeout(copyTimerRef.current), []);
 
   const handleCopyToClipboard = async (e) => {
-  e.stopPropagation();
-  const ok = await copyToClipboard(JSON.stringify(finding, null, 2));
-  setCopyState(ok ? 'success' : 'error');
-  copyTimerRef.current = setTimeout(() => setCopyState('idle'), 2000);
+    e.stopPropagation();
+    const ok = await copyToClipboard(JSON.stringify(finding, null, 2));
+    setCopyState(ok ? 'success' : 'error');
+    copyTimerRef.current = setTimeout(() => setCopyState('idle'), 2000);
   };
 
   return (
@@ -269,7 +269,7 @@ const FindingCard = ({ finding }) => {
 const ResultsList = ({ findings, loading, contractName }) => {
   const [searchTerm,      setSearchTerm]      = useState('');
   const [filterSeverity,  setFilterSeverity]  = useState('All');
-  const [copyLinkSuccess, setCopyLinkSuccess] = useState('idle');
+  const [copyLinkState, setCopyLinkState] = useState('idle');
   const [printError,      setPrintError]      = useState('');
 
   const copyLinkTimerRef = useRef(null);

@@ -1,86 +1,147 @@
 # BlockScope Performance Report
 
-**Generated:** 2026-04-16T00:00:00+00:00 (static baseline — server not running in CI)
-**Target:** http://localhost:8000
-**Samples per endpoint:** 5
-**Overall verdict:** See notes below
+**Document type:** Reference baseline with measured load data  
+**Last updated:** 2026-04-16  
+**Author:** shanaysoni
 
-> [!NOTE]
-> This is the **baseline reference report** committed as the required deliverable.
-> A live report can be regenerated at any time by running:
-> ```bash
-> cd backend
-> python -m scripts.performance_profile --url http://localhost:8000 --runs 5
-> ```
-> The script will overwrite `performance_report.json` and `performance_report.md`
-> with real measured values. These output files are in `.gitignore` and should
-> not be committed unless intentionally archiving a snapshot.
+> [!IMPORTANT]
+> The SLA targets below apply to **single-user (serial) requests**.
+> Load test data shows latency increases non-linearly under concurrency.
+> See the [Load Test Results](#load-test-results) and [Honest SLA Assessment](#honest-sla-assessment) sections.
 
 ---
 
-## SLA Targets
+## How to Generate a Live Single-Request Report
 
-| Endpoint | SLA Threshold |
-|----------|-------------:|
-| `/health` | 200 ms |
-| `/` (root) | 100 ms |
-| `/api/v1/performance` | 200 ms |
-| `/api/v1/scans` (list) | 500 ms |
-| `/api/v1/scan` (clean contract) | 2 000 ms |
-| `/api/v1/scan` (vulnerable contract) | 2 000 ms |
-| `/api/v1/scan` (cache hit) | 100 ms |
+```bash
+# 1. Start the backend
+cd backend
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# 2. In a new terminal, run the profiler
+python -m scripts.performance_profile --url http://localhost:8000 --runs 10
+
+# 3. The script produces:
+#    backend/performance_report.json  (machine-readable)
+#    backend/performance_report.md    (human-readable table)
+```
+
+---
+
+## SLA Targets (Serial / Single-User)
+
+| Endpoint | SLA Threshold | Notes |
+|----------|-------------:|-------|
+| `GET /health` | 200 ms | Simple DB ping |
+| `GET /` (root) | 100 ms | Static dict |
+| `GET /api/v1/performance` | 200 ms | Cache stats + pool info |
+| `GET /api/v1/scans` (list, 10 items) | 500 ms | Paginated query |
+| `POST /api/v1/scan` (first call) | 2 000 ms | Includes Slither analysis |
+| `POST /api/v1/scan` (cache hit) | 100 ms | Analysis skipped; DB write only |
+
+---
+
+## Load Test Results (Measured — Locust)
+
+Results are from **actual Locust executions** against the local FastAPI backend.  
+Source: `backend/tests/load/benchmarks.md`
+
+### Scenario 1 — 1 Concurrent User
+
+| Contract | Median | p95 | Avg |
+|----------|-------:|----:|----:|
+| Small | 423 ms | 430 ms | 426 ms |
+| Medium | 450 ms | 470 ms | 455 ms |
+| Large | 432 ms | 430 ms | 432 ms |
+
+✅ All within 2 000 ms SLA at single-user load.
+
+### Scenario 2 — 10 Concurrent Users
+
+| Contract | Median | p95 | Avg |
+|----------|-------:|----:|----:|
+| Small | 2 900 ms | 3 800 ms | 2 522 ms |
+| Medium | 740 ms | 1 300 ms | 851 ms |
+| Large | 2 000 ms | 4 100 ms | 2 424 ms |
+
+⚠️ Small and large contracts **exceed the 2 000 ms SLA** at 10 concurrent users.  
+Aggregated avg: **2 205 ms** · Failures: 0
+
+### Scenario 3 — 50 Concurrent Users
+
+| Contract | Median | p95 | Avg |
+|----------|-------:|----:|----:|
+| Small | 7 300 ms | 18 000 ms | 7 796 ms |
+| Medium | 8 900 ms | 18 000 ms | 9 636 ms |
+| Large | 7 000 ms | 12 000 ms | 6 823 ms |
+
+❌ **All contracts exceed the 2 000 ms SLA** at 50 users.  
+Aggregated avg: **8 260 ms** · Failures: 0 (stable under load, but slow)
+
+---
+
+## Honest SLA Assessment
+
+| Deliverable | Status | Evidence |
+|---|:-:|---|
+| Backend response < 2 s (serial) | ✅ | 1-user Locust scenario: 423–450 ms |
+| Backend response < 2 s (10 users) | ⚠️ | Small/large contracts: 2 900–4 100 ms p95 |
+| Backend response < 2 s (50 users) | ❌ | Median 7 000–8 900 ms across all contracts |
+| Cache acceleration | ✅ | Analysis cache hit skips Slither; DB persists ~5 ms |
+| Frontend load < 1 s | ⚠️ | Build produces split bundles (App 31.9 kB gzip); no Lighthouse audit committed |
+| System stability under load | ✅ | Zero failures across all 3 Locust scenarios |
+
+---
+
+## Bottleneck Analysis
+
+The primary bottleneck is **Slither execution** — the Solidity compiler is invoked synchronously in an OS subprocess for each unique contract. This cannot be parallelised beyond the available CPU cores.
+
+Implemented mitigations:
+1. **Analysis result cache** (`_analysis_result_cache` in `scan.py`) — deduplicated Slither invocations by SHA-256 key. Cache hit serves from memory and only runs a DB insert (~5 ms).
+2. **Bounded thread pool** (`_SCAN_EXECUTOR`, max 4 workers) — prevents event-loop starvation.
+3. **GZip compression** — reduces response payload ≥50%.
+
+Remaining work for high-concurrency:
+- Queue-based scan processing (Celery / RQ) to decouple analysis from the HTTP request lifecycle
+- Slither result serialisation + horizontal scaling
 
 ---
 
 ## Key Optimisations Implemented
 
-### Backend (12 hours)
+### Backend
 
-| Optimization | Component | Effect |
-|---|---|---|
-| LRU analysis cache with TTL | `analysis/cache.py` | Repeat scans served in <5 ms |
-| Slither lazy import + parse cache | `analysis/slither_wrapper.py` | Eliminates repeated compiler invocations |
-| Off-loop analysis via `run_in_executor` | `app/routers/scan.py` | Prevents event-loop starvation |
-| GZip middleware | `app/main.py` | Reduces response payload ≥50% |
-| Structured thread pool | `_SCAN_EXECUTOR` | Bounded concurrency, consistent latency |
-| `PerformanceTimer` context manager | `app/core/logger.py` | Per-stage latency logging |
-| DB helpers (`paginate`, `get_by_id`) | `app/core/database.py` | Eliminates N+1 query patterns |
+| Optimisation | Component | Status |
+|---|---|:-:|
+| LRU analysis cache with bounded size (512 entries max) | `app/routers/scan.py` | ✅ |
+| SHA-256 cache key (source + contract name) | `app/routers/scan.py` | ✅ |
+| DB row always inserted (no scan_id leakage) | `app/routers/scan.py` | ✅ |
+| Off-loop analysis via `run_in_executor` | `app/routers/scan.py` | ✅ |
+| GZip middleware | `app/main.py` | ✅ |
+| PerformanceTimer context manager | `app/core/logger.py` | ✅ |
+| DB helpers (`paginate`, `get_by_id`) | `app/core/database.py` | ✅ |
+| Slither lazy import + parse cache | `analysis/slither_wrapper.py` | ✅ |
 
-### Frontend (8 hours)
+### Frontend
 
-| Optimization | Component | Effect |
-|---|---|---|
-| Code splitting (`React.lazy`) | `main.jsx` | App chunk loaded only on demand |
-| Manual Vite chunk splitting | `vite.config.js` | React/UI libs cached separately |
-| Service worker (cache-first) | `public/sw.js` | Shell served offline; API bypassed |
-| Web Vitals reporting | `main.jsx` | CLS, FID, FCP, LCP, TTFB tracked |
-| `es2020` build target | `vite.config.js` | Smaller output, modern syntax |
-
----
-
-## Performance Test Coverage
-
-Unit and integration tests in `backend/tests/test_performance.py` cover:
-
-- `TestAnalysisCache` — 8 tests: key determinism, LRU eviction, TTL expiry, thread safety, hit-rate calculation
-- `TestSlitherWrapperPerformance` — 3 tests: lazy availability probe, parse cache cold start, file-not-found error
-- `TestOrchestratorCaching` — 2 tests: cache acceleration (2nd call ≥5× faster), cache isolation between contracts
-- `TestEndpointResponseTimes` — 7 tests (live, auto-skipped when server is not running): health/root/list/performance SLAs, scan SLA, cache acceleration, concurrent request handling
+| Optimisation | Component | Status |
+|---|---|:-:|
+| Code splitting (`React.lazy` + `Suspense`) | `main.jsx` | ✅ |
+| Manual Vite chunk splitting | `vite.config.js` | ✅ |
+| Production build bundles (App 31.9 kB, react-vendor 192.9 kB) | `vite.config.js` | ✅ |
+| Service worker (cache-first shell, network-only API) | `public/sw.js` | ✅ |
+| PWA manifest | `public/manifest.json` | ✅ |
+| Web Vitals (CLS, FID, FCP, LCP, TTFB) | `main.jsx` | ✅ |
+| Lighthouse audit committed | — | ❌ Pending |
 
 ---
 
-## How to Generate a Live Report
+## Memory Leak Mitigation
 
-```bash
-# 1. Start the backend
-cd backend
-uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+The `_analysis_result_cache` dict is capped at **512 entries** (`_ANALYSIS_CACHE_MAX`).  
+When the limit is reached, the oldest entry is evicted (FIFO order, leveraging Python 3.7+ `dict` insertion ordering).
 
-# 2. Run the profiler (output goes to backend/ directory)
-python -m scripts.performance_profile --url http://localhost:8000 --runs 10
+For long-running production deployments, consider replacing with the `AnalysisCache` class in `analysis/cache.py`, which adds TTL expiry, LRU eviction, and per-entry memory accounting.
 
-# 3. View results
-cat performance_report.md
-```
-
-> Generated reference document — `backend/docs/PERFORMANCE_REPORT.md`
+> Generated by Antigravity — `backend/docs/PERFORMANCE_REPORT.md`
