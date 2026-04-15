@@ -31,7 +31,6 @@ hiredis==2.3.2  # High-performance Redis parser
 python-jose[cryptography]==3.3.0  # JWT tokens
 passlib[bcrypt]==1.7.4  # Password hashing
 bcrypt==4.1.2
-python-multipart==0.0.6  # Form data
 pyjwt==2.8.0  # JWT
 
 # ===================================
@@ -110,8 +109,6 @@ pytest==7.4.4
 pytest-asyncio==0.23.3
 pytest-cov==4.1.0
 pytest-mock==3.12.0
-httpx==0.26.0  # For testing async endpoints
-faker==22.4.0  # Generate fake data for tests
 
 # ===================================
 # Code Quality
@@ -209,3 +206,4 @@ prometheus-fastapi-instrumentator==6.1.0
 # - Check for vulnerabilities: safety check
 # - Update regularly: pip install -U -r requirements.txt
 # - Pin versions in production for stability
+psutil>=5.9.0
