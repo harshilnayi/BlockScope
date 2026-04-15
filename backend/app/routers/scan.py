@@ -29,6 +29,9 @@ from app.core.database import get_by_id, get_db, paginate
 from app.core.logger import PerformanceTimer, log_error_context, logger
 from app.models.scan import Scan
 from app.schemas.scan_schema import ScanRequest, ScanResponse
+from app.metrics import CACHE_HITS, CACHE_MISSES   
+
+_scan_cache: dict[str, dict] = {} 
 
 # ──────────────────────────────────────────────
 # Security modules (optional, graceful fallback)
@@ -225,6 +228,15 @@ def _run_analysis_and_persist(
     """
     ctx = {"contract_name": contract_name, "file_path": file_path, "request_id": request_id}
 
+    # Cache key (based on source code)
+    cache_key = source_code
+
+# Check cache
+    if cache_key in _scan_cache:
+        CACHE_HITS.labels(cache_type="scan").inc()
+        _scan_logger.info("Cache hit", extra=ctx)
+        return _scan_cache[cache_key]
+
     # Run analysis
     with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
         analysis_request = AnalysisScanRequest(
@@ -249,14 +261,20 @@ def _run_analysis_and_persist(
         scan_record = _build_scan_record(scan_result, findings_json)
         db.add(scan_record)
         db.commit()
-        db.refresh(scan_record)
+        db.refresh(scan_record) 
 
     _scan_logger.info(
         "Scan persisted",
         extra={**ctx, "scan_id": scan_record.id},
     )
 
-    return _scan_record_to_response(scan_record)
+    response = _scan_record_to_response(scan_record)
+
+    # Store in cache
+    _scan_cache[cache_key] = response
+    CACHE_MISSES.labels(cache_type="scan").inc()
+
+    return response
 
 
 # ──────────────────────────────────────────────

@@ -7,13 +7,11 @@ import logging
 import sys
 from pathlib import Path
 import time
-from fastapi import Request
 
 from prometheus_client import generate_latest
 from fastapi.responses import Response
 from app.metrics import REQUEST_COUNT, REQUEST_LATENCY, ACTIVE_REQUESTS, CACHE_HITS, CACHE_MISSES, ACTIVE_USERS, APP_UPTIME,START_TIME
 from app.routers.health import router as health_router
-from app.routers.health import startup_complete
 from fastapi import FastAPI, Request
 from app.core.logging_config import setup_logging
 from fastapi.middleware.cors import CORSMiddleware
@@ -163,8 +161,8 @@ async def shutdown_event():
 
             await rate_limit_redis.disconnect()
             logger.info("✅ Redis disconnected")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"⚠️  Redis disconnect failed: {e}")
 
     logger.info("✅ Application shutdown complete")
 

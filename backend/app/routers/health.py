@@ -1,4 +1,6 @@
 import shutil
+import time
+
 import psutil
 import redis
 from fastapi import APIRouter
@@ -48,6 +50,25 @@ def check_memory():
     return {"status": status, "percent_used": percent_used, "available_mb": available_mb}
 
 
+def check_response_time():
+    """Measure internal API responsiveness with a lightweight operation."""
+    start = time.time()
+
+    # Lightweight CPU-bound work (no external calls)
+    total = sum(range(1000))
+
+    elapsed_ms = round((time.time() - start) * 1000, 2)
+
+    if elapsed_ms < 500:
+        status = "healthy"
+    elif elapsed_ms <= 1000:
+        status = "warning"
+    else:
+        status = "critical"
+
+    return {"response_time_ms": elapsed_ms, "status": status}
+
+
 # ── ENDPOINTS ─────────────────────────────────────────────────────────────────
 
 @router.get("/live")
@@ -57,18 +78,26 @@ def liveness():
 
 @router.get("/ready")
 def readiness():
-    db     = check_database()
-    r      = check_redis()
-    disk   = check_disk()
-    memory = check_memory()
+    db            = check_database()
+    r             = check_redis()
+    disk          = check_disk()
+    memory        = check_memory()
+    response_time = check_response_time()
 
-    checks = {"database": db, "redis": r, "disk": disk, "memory": memory}
+    checks = {
+        "database": db,
+        "redis": r,
+        "disk": disk,
+        "memory": memory,
+        "response_time": response_time,
+    }
 
     critical = (
         db["status"] == "error"
         or r["status"] == "error"
         or disk["status"] == "critical"
         or memory["status"] == "critical"
+        or response_time["status"] == "critical"
     )
 
     if critical:
