@@ -67,8 +67,17 @@ export default defineConfig({
     // Minify with esbuild (default) — fastest option
     minify: 'esbuild',
 
+    // ── Asset optimisation ──────────────────────────────────────────────
+    // Inline small assets (< 4 KB) as base64 to cut HTTP round-trips.
+    // Larger assets are emitted as separate files with content-hash names.
+    assetsInlineLimit: 4096,
+
     // CSS code-splitting: each async chunk only loads the CSS it needs
     cssCodeSplit: true,
+
+    // Image / SVG assets: content-hash filenames for cache-busting.
+    // UI images should use the LazyImage component (src/components/LazyImage.jsx)
+    // which adds loading="lazy", decoding="async", and srcSet/sizes support.
   },
 
   // Dev server proxy to avoid CORS issues during development

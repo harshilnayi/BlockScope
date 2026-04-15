@@ -86,7 +86,9 @@ const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
       return true;
-    } catch (_) {}
+    } catch {
+      // clipboard API failed — fall through to execCommand
+    }
   }
   try {
     const textarea = document.createElement('textarea');
@@ -98,7 +100,7 @@ const copyToClipboard = async (text) => {
     const ok = document.execCommand('copy');
     document.body.removeChild(textarea);
     return ok;
-  } catch (_) {
+  } catch {
     return false;
   }
 };
@@ -589,7 +591,7 @@ const ScanForm = ({
     if (initialCode !== undefined) {
       setContractCode(initialCode);
     }
-  }, [initialCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialCode]);
 
   useEffect(() => {
     if (initialName !== undefined) setContractName(initialName);
