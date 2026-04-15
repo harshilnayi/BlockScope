@@ -188,8 +188,6 @@ class PerformanceLoggingMiddleware(BaseHTTPMiddleware):
         return response
 
 
-
-
 # ----------------------------------------------
 # Lifecycle (startup + shutdown)
 # ----------------------------------------------
@@ -308,9 +306,6 @@ else:
         allow_headers=["*"],
     )
     logger.warning("Permissive CORS active — not suitable for production")  # pragma: no cover
-
-
-
 
 
 # ----------------------------------------------
