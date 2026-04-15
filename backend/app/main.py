@@ -1,15 +1,9 @@
 """
-BlockScope API — Main Application Entry Point.
-
-Configures FastAPI with:
-- Request-ID middleware (X-Request-ID header propagation)
-- Performance logging middleware
-- CORS + security middleware
-- Rate limiting (when Redis is available)
-- Global exception handlers
-- Health, root, and info endpoints
+BlockScope API - Main Application
+Secure, production-ready FastAPI application with comprehensive security features
 """
 
+import logging
 import sys
 import time
 import uuid
@@ -21,12 +15,24 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from prometheus_client import generate_latest
 
-# Ensure the parent directory is importable
+# Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
+from app.core.logging_config import setup_logging
 from app.core.logger import logger, set_request_id
+from app.metrics import (
+    REQUEST_COUNT,
+    REQUEST_LATENCY,
+    ACTIVE_REQUESTS,
+    CACHE_HITS,
+    CACHE_MISSES,
+    ACTIVE_USERS,
+    APP_UPTIME,
+    START_TIME,
+)
+from app.routers.health import router as health_router
 
 try:
     from app.core.auth import APIKey, get_optional_api_key
@@ -36,47 +42,48 @@ except ImportError:  # pragma: no cover
     def get_optional_api_key() -> None:  # type: ignore[misc]
         return None
 
+# Setup logging
+setup_logging()
+
 # ----------------------------------------------
 # Settings (with graceful fallback)
 # ----------------------------------------------
 try:
-    from app.core.config import print_config_summary, settings
+    from app.core.settings import settings
 
-    SECURITY_ENABLED: bool = True
+    SECURITY_ENABLED = True
 except ImportError:
+    # Fallback settings if core.config not available yet
+    class Settings:
+        APP_NAME = "BlockScope API"
+        APP_VERSION = "0.1.0"
+        DEBUG = True
+        ENABLE_API_DOCS = True
+        CORS_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
+        RATE_LIMIT_ENABLED = False
+        LOG_REQUESTS = True
 
-    class _FallbackSettings:  # type: ignore[no-redef]
-        """Minimal stand-in settings used when the full config is unavailable."""
-
-        APP_NAME: str = "BlockScope API"
-        APP_VERSION: str = "0.1.0"
-        DEBUG: bool = True
-        ENABLE_API_DOCS: bool = True
-        CORS_ORIGINS: list = ["http://localhost:5173", "http://localhost:3000"]
-        RATE_LIMIT_ENABLED: bool = False
-        LOG_REQUESTS: bool = True
-        ENVIRONMENT: str = "development"
-
-    settings = _FallbackSettings()  # type: ignore[assignment]
+    settings = Settings()
     SECURITY_ENABLED = False
-    logger.warning("Running without security modules — set up config to enable full security")
+    print("⚠️  Running without security modules. Run setup to enable full security.")
 
 # ----------------------------------------------
 # Routers
 # ----------------------------------------------
 try:
     from app.routers.scan import router as scan_router
-
-    _scan_router_available: bool = True
+    _scan_router_available = True
 except ImportError:
-    logger.error("Scan router import failed — /api/v1/scan will not be available")
-    scan_router = None  # type: ignore[assignment]
+    print("⚠️  Scan router not found. Please ensure app/routers/scan.py exists.")
+    scan_router = None
     _scan_router_available = False
-
 
 # ----------------------------------------------
 # Middleware definitions
 # ----------------------------------------------
+
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """
@@ -147,31 +154,31 @@ class PerformanceLoggingMiddleware(BaseHTTPMiddleware):
             "client_ip": request.client.host if request.client else "unknown",
         }
 
-        status = response.status_code
+        status_code = response.status_code
         if elapsed_ms >= self.SLOW_REQUEST_THRESHOLD_MS:  # pragma: no cover
             logger.warning(
                 "Slow request %s %s → %d  (%.1f ms)",
                 request.method,
                 request.url.path,
-                status,
+                status_code,
                 elapsed_ms,
                 extra=log_extra,
             )
-        elif status >= 500:
+        elif status_code >= 500:
             logger.error(
                 "%s %s → %d  (%.1f ms)",
                 request.method,
                 request.url.path,
-                status,
+                status_code,
                 elapsed_ms,
                 extra=log_extra,
             )
-        elif status >= 400:
+        elif status_code >= 400:
             logger.warning(
                 "%s %s → %d  (%.1f ms)",
                 request.method,
                 request.url.path,
-                status,
+                status_code,
                 elapsed_ms,
                 extra=log_extra,
             )
@@ -180,7 +187,7 @@ class PerformanceLoggingMiddleware(BaseHTTPMiddleware):
                 "%s %s → %d  (%.1f ms)",
                 request.method,
                 request.url.path,
-                status,
+                status_code,
                 elapsed_ms,
                 extra=log_extra,
             )
@@ -197,6 +204,8 @@ async def lifespan(app: FastAPI):
     """Handle application startup and graceful shutdown via lifespan context."""
     # -- Startup ----------------------------------------------------------
     logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
+    import app.routers.health as health
+    health.startup_complete = True
 
     if settings.DEBUG and SECURITY_ENABLED:  # pragma: no cover
         try:
@@ -265,6 +274,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.include_router(health_router)
+
 # ----------------------------------------------
 # Middleware stack  (order matters — added last runs first)
 # ----------------------------------------------
@@ -275,21 +286,17 @@ app.add_middleware(
     minimum_size=getattr(settings, "GZIP_MINIMUM_SIZE", 1024),
 )
 
-# 1. Request ID — must be first so all subsequent middleware can read the ID
-app.add_middleware(RequestIDMiddleware)
-
-# 2. Performance logger
-app.add_middleware(PerformanceLoggingMiddleware)
-
-# 3. CORS / security
+# Add security middleware if available
 if SECURITY_ENABLED:
     try:
         from app.core.security import setup_security_middleware
 
         setup_security_middleware(app)
-        logger.info("Security middleware enabled")
+        logger.info("✅ Security middleware enabled")
     except ImportError:
-        logger.warning("Security middleware not available — falling back to basic CORS")
+        logger.warning("⚠️  Security middleware not available")
+
+        # Fallback basic CORS
         app.add_middleware(
             CORSMiddleware,
             allow_origins=settings.CORS_ORIGINS,
@@ -298,108 +305,121 @@ if SECURITY_ENABLED:
             allow_headers=["*"],
         )
 else:
-    app.add_middleware(  # pragma: no cover
+    # Basic CORS for development
+    app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],   # Development only
+        allow_origins=["*"],  # ⚠️ Development only!
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    logger.warning("Permissive CORS active — not suitable for production")  # pragma: no cover
+    logger.warning("⚠️  Running with permissive CORS (development mode)")
 
+# Add rate limiting middleware if available
+if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
+    try:
+        from app.core.rate_limit import RateLimitMiddleware, rate_limit_redis
+
+        @app.on_event("startup")
+        async def add_rate_limit():
+            app.add_middleware(
+                RateLimitMiddleware, redis_client=rate_limit_redis.redis, enabled=True
+            )
+
+        logger.info("✅ Rate limiting enabled")
+    except ImportError:
+        logger.warning("⚠️  Rate limiting not available")
+
+# ----------------------------------------------
+# Prometheus metrics middleware
+# ----------------------------------------------
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    ACTIVE_REQUESTS.inc()
+
+    start = time.time()
+
+    logger.info(f"→ {request.method} {request.url.path}")
+
+    # Track authenticated users via API key header
+    api_key = request.headers.get("X-API-Key")
+    if api_key:
+        ACTIVE_USERS.inc()
+
+    response = await call_next(request)
+
+    duration = round((time.time() - start) * 1000, 2)
+
+    logger.info(
+        f"← {request.method} {request.url.path} "
+        f"| status={response.status_code} | {duration}ms"
+    )
+
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=request.url.path,
+        status=response.status_code
+    ).inc()
+
+    REQUEST_LATENCY.labels(
+        endpoint=request.url.path
+    ).observe(duration / 1000)
+
+    APP_UPTIME.set(time.time() - START_TIME)
+
+    ACTIVE_REQUESTS.dec()
+
+    if api_key:
+        ACTIVE_USERS.dec()
+
+    return response
+
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type="text/plain")
 
 # ----------------------------------------------
 # Global exception handlers
 # ----------------------------------------------
 
 @app.exception_handler(404)
-async def not_found_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Return a structured 404 response."""
+async def not_found_handler(request: Request, exc):
+    """Custom 404 handler"""
     return JSONResponse(
         status_code=404,
         content={
             "error": "not_found",
-            "message": "The requested resource was not found.",
-            "path": str(request.url.path),
-            "request_id": getattr(request.state, "request_id", ""),
+            "message": "The requested resource was not found",
+            "path": str(request.url),
         },
     )
 
 
 @app.exception_handler(500)
-async def internal_error_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Return a structured 500 response without leaking internal details."""
-    request_id = getattr(request.state, "request_id", "")
-    logger.error(
-        "Unhandled exception on %s %s",
-        request.method,
-        request.url.path,
-        exc_info=exc,
-        extra={"request_id": request_id},
-    )
+async def internal_error_handler(request: Request, exc):
+    """Custom 500 handler"""
+    logger.error(f"Internal error: {exc}")
     return JSONResponse(
         status_code=500,
         content={
             "error": "internal_server_error",
-            "message": "An unexpected error occurred. Please try again later.",
-            "request_id": request_id,
+            "message": "An internal server error occurred. Please try again later.",
         },
     )
-
 
 # ----------------------------------------------
 # System endpoints
 # ----------------------------------------------
 
-@app.get("/health", tags=["System"], summary="Health check")
-async def health_check() -> Dict[str, Any]:
+@app.get("/", tags=["System"])
+async def root():
     """
-    Return application health status.
-
-    Checks database and (optionally) Redis connectivity.
-    Status is ``"healthy"`` when all checks pass, ``"degraded"`` otherwise.
+    Root endpoint with API information.
 
     Returns:
-        Dict with ``status``, ``version``, and component connectivity flags.
-    """
-    health: Dict[str, Any] = {
-        "status": "healthy",
-        "version": settings.APP_VERSION,
-        "app": settings.APP_NAME,
-    }
-
-    # Database
-    try:
-        from app.core.database import engine
-        from sqlalchemy import text
-
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        health["database"] = "connected"
-    except Exception:
-        health["database"] = "disconnected"
-        health["status"] = "degraded"
-
-    # Redis
-    if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:  # pragma: no cover
-        try:
-            from app.core.rate_limit import rate_limit_redis
-
-            await rate_limit_redis.redis.ping()
-            health["redis"] = "connected"
-        except Exception:
-            health["redis"] = "disconnected"
-
-    return health
-
-
-@app.get("/", tags=["System"], summary="API root")
-async def root() -> Dict[str, Any]:
-    """
-    Return API overview information.
-
-    Returns:
-        Dict with app name, version, and key endpoint paths.
+        dict: API info and available endpoints
     """
     return {
         "message": f"Welcome to {settings.APP_NAME}",
@@ -407,7 +427,9 @@ async def root() -> Dict[str, Any]:
         "description": "Smart Contract Vulnerability Scanner",
         "docs": "/docs" if settings.ENABLE_API_DOCS else None,
         "health": "/health",
-        "endpoints": {"scan": "/api/v1/scan"},
+        "endpoints": {
+            "scan": "/api/v1/scan",
+        },
         "security": {
             "enabled": SECURITY_ENABLED,
             "rate_limiting": settings.RATE_LIMIT_ENABLED if SECURITY_ENABLED else False,
@@ -416,15 +438,15 @@ async def root() -> Dict[str, Any]:
     }
 
 
-@app.get("/api/v1/info", tags=["System"], summary="Detailed API info")
-async def api_info() -> Dict[str, Any]:
+@app.get("/api/v1/info", tags=["System"])
+async def api_info():
     """
-    Return detailed API and configuration information.
+    Detailed API information.
 
     Returns:
-        Dict with environment, security configuration, and upload limits.
+        dict: Detailed API configuration
     """
-    info: Dict[str, Any] = {
+    info = {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "environment": getattr(settings, "ENVIRONMENT", "unknown"),
@@ -432,17 +454,19 @@ async def api_info() -> Dict[str, Any]:
     }
 
     if SECURITY_ENABLED:
-        info["security"] = {
-            "rate_limiting": settings.RATE_LIMIT_ENABLED,
-            "cors_configured": True,
-            "api_key_authentication": True,
-        }
-        info["limits"] = {
-            "max_upload_size": (
-                f"{getattr(settings, 'MAX_UPLOAD_SIZE', 5_242_880) / 1024 / 1024:.1f} MB"
-            ),
-            "allowed_extensions": getattr(settings, "ALLOWED_EXTENSIONS", [".sol"]),
-        }
+        info.update(
+            {
+                "security": {
+                    "rate_limiting": settings.RATE_LIMIT_ENABLED,
+                    "cors_configured": True,
+                    "api_key_authentication": True,
+                },
+                "limits": {
+                    "max_upload_size": f"{getattr(settings, 'MAX_UPLOAD_SIZE', 5242880) / 1024 / 1024:.1f}MB",
+                    "allowed_extensions": getattr(settings, "ALLOWED_EXTENSIONS", [".sol"]),
+                },
+            }
+        )
 
     return info
 
@@ -458,36 +482,36 @@ async def performance_metrics() -> Dict[str, Any]:
     Returns:
         Dict with cache and database pool metrics.
     """
-    metrics: Dict[str, Any] = {}
+    perf_metrics: Dict[str, Any] = {}
 
     # Analysis result cache
     try:
         from analysis.cache import analysis_cache
-        metrics["analysis_cache"] = analysis_cache.stats
+        perf_metrics["analysis_cache"] = analysis_cache.stats
     except Exception:
-        metrics["analysis_cache"] = "unavailable"
+        perf_metrics["analysis_cache"] = "unavailable"
 
     # Slither parse cache
     try:
         from analysis.slither_wrapper import SlitherWrapper
-        metrics["slither_parse_cache_size"] = SlitherWrapper.parse_cache_size()
+        perf_metrics["slither_parse_cache_size"] = SlitherWrapper.parse_cache_size()
     except Exception:
-        metrics["slither_parse_cache_size"] = "unavailable"
+        perf_metrics["slither_parse_cache_size"] = "unavailable"
 
     # DB pool
     try:
         from app.core.database import engine
         pool = engine.pool
-        metrics["db_pool"] = {
+        perf_metrics["db_pool"] = {
             "size": pool.size(),
             "checked_out": pool.checkedout(),
             "overflow": pool.overflow(),
             "checked_in": pool.checkedin(),
         }
     except Exception:
-        metrics["db_pool"] = "unavailable"
+        perf_metrics["db_pool"] = "unavailable"
 
-    return metrics
+    return perf_metrics
 
 
 @app.post("/api/v1/cache/invalidate", tags=["System"], summary="Clear analysis cache")
@@ -555,31 +579,32 @@ else:  # pragma: no cover
 if settings.DEBUG:  # pragma: no cover
 
     @app.get("/debug/routes", tags=["Debug"], include_in_schema=False)
-    async def debug_routes() -> Dict[str, Any]:
-        """List all registered routes (debug only)."""
-        return {
-            "routes": [
-                {"path": r.path, "methods": sorted(r.methods), "name": r.name}
-                for r in app.routes
-                if hasattr(r, "methods")
-            ]
-        }
+    async def debug_routes():
+        """List all available routes (debug only)"""
+        routes = []
+        for route in app.routes:
+            if hasattr(route, "methods"):
+                routes.append(
+                    {"path": route.path, "methods": list(route.methods), "name": route.name}
+                )
+        return {"routes": routes}
 
     @app.get("/debug/config", tags=["Debug"], include_in_schema=False)
-    async def debug_config() -> Dict[str, Any]:
-        """Show sanitised configuration (debug only)."""
+    async def debug_config():
+        """Show current configuration (debug only)"""
         if SECURITY_ENABLED:
             return {
                 "security_enabled": True,
                 "environment": settings.ENVIRONMENT,
                 "debug": settings.DEBUG,
                 "rate_limiting": settings.RATE_LIMIT_ENABLED,
-                "cors_origins": settings.CORS_ORIGINS[:3],
+                "cors_origins": settings.CORS_ORIGINS[:3],  # First 3 only
             }
-        return {
-            "security_enabled": False,
-            "message": "Running in basic mode — configure environment variables to enable security.",
-        }
+        else:
+            return {
+                "security_enabled": False,
+                "message": "Running in basic mode. Enable security features by setting up core modules.",
+            }
 
 
 # ----------------------------------------------
