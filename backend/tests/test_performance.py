@@ -25,7 +25,7 @@ import httpx
 
 # ─── Test configuration ───────────────────────────────────────────────────────
 
-BASE_URL = "http://localhost:5000"
+BASE_URL = "http://localhost:8000"
 
 # SLA thresholds (milliseconds)
 SLA = {
@@ -241,7 +241,7 @@ class TestOrchestratorCaching:
         assert result1.contract_name == result2.contract_name
         assert result1.overall_score == result2.overall_score
         # Cache hit should be at least 5× faster than the first call
-        assert second_ms < first_ms * 0.2 or second_ms < 10, (
+        assert second_ms < first_ms * 0.2, (
             f"Cache hit should be near-instant; got {second_ms:.1f} ms "
             f"(first call was {first_ms:.1f} ms)"
         )

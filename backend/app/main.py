@@ -13,6 +13,7 @@ Configures FastAPI with:
 import sys
 import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -187,6 +188,70 @@ class PerformanceLoggingMiddleware(BaseHTTPMiddleware):
         return response
 
 
+
+
+# ----------------------------------------------
+# Lifecycle (startup + shutdown)
+# ----------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle application startup and graceful shutdown via lifespan context."""
+    # -- Startup ----------------------------------------------------------
+    logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
+
+    if settings.DEBUG and SECURITY_ENABLED:  # pragma: no cover
+        try:
+            print_config_summary()
+        except Exception:
+            pass
+
+    # Redis (rate limiting)
+    if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:  # pragma: no cover
+        try:
+            from app.core.rate_limit import rate_limit_redis
+
+            await rate_limit_redis.connect()
+            logger.info("Redis connected for rate limiting")
+        except Exception as exc:
+            logger.warning("Redis connection failed - rate limiting disabled: %s", exc)
+
+    # Database connectivity
+    try:
+        from app.core.database import engine, text
+
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info("Database connection verified")
+    except Exception as exc:
+        logger.warning("Database connection failed on startup: %s", exc)
+
+    logger.info("Application startup complete")
+
+    yield  # <- application runs here
+
+    # -- Shutdown ---------------------------------------------------------
+    logger.info("Shutting down %s ...", settings.APP_NAME)
+
+    # Shut down the shared analysis thread pool cleanly so worker threads
+    # are not left dangling when uvicorn exits.
+    try:
+        from analysis.orchestrator import _ANALYSIS_POOL
+        _ANALYSIS_POOL.shutdown(wait=False, cancel_futures=True)
+        logger.info("Analysis thread pool shut down")
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Thread pool shutdown skipped: %s", exc)
+
+    if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:  # pragma: no cover
+        try:
+            from app.core.rate_limit import rate_limit_redis
+            await rate_limit_redis.disconnect()
+            logger.info("Redis disconnected")
+        except Exception:
+            pass
+
+    logger.info("Application shutdown complete")
+
 # ----------------------------------------------
 # FastAPI application instance
 # ----------------------------------------------
@@ -199,6 +264,7 @@ app = FastAPI(
     version=settings.APP_VERSION,
     docs_url="/docs" if settings.ENABLE_API_DOCS else None,
     redoc_url="/redoc" if settings.ENABLE_API_DOCS else None,
+    lifespan=lifespan,
 )
 
 # ----------------------------------------------
@@ -244,59 +310,7 @@ else:
     logger.warning("Permissive CORS active — not suitable for production")  # pragma: no cover
 
 
-# ----------------------------------------------
-# Lifecycle events
-# ----------------------------------------------
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Initialise external connections and log startup summary."""
-    logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
-
-    if settings.DEBUG and SECURITY_ENABLED:  # pragma: no cover
-        try:
-            print_config_summary()
-        except Exception:
-            pass
-
-    # Redis (rate limiting)
-    if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:  # pragma: no cover
-        try:
-            from app.core.rate_limit import rate_limit_redis
-
-            await rate_limit_redis.connect()
-            logger.info("Redis connected for rate limiting")
-        except Exception as exc:
-            logger.warning("Redis connection failed — rate limiting disabled: %s", exc)
-
-    # Database connectivity
-    try:
-        from app.core.database import engine, text
-
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        logger.info("Database connection verified")
-    except Exception as exc:
-        logger.warning("Database connection failed on startup: %s", exc)
-
-    logger.info("Application startup complete")
-
-
-@app.on_event("shutdown")
-async def shutdown_event() -> None:
-    """Disconnect from external services on graceful shutdown."""
-    logger.info("Shutting down %s …", settings.APP_NAME)
-
-    if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:  # pragma: no cover
-        try:
-            from app.core.rate_limit import rate_limit_redis
-
-            await rate_limit_redis.disconnect()
-            logger.info("Redis disconnected")
-        except Exception:
-            pass
-
-    logger.info("Application shutdown complete")
 
 
 # ----------------------------------------------

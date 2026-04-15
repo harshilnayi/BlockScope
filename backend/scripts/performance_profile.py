@@ -3,7 +3,7 @@ BlockScope Performance Profiler & Report Generator.
 
 Usage:
     cd backend
-    python -m scripts.performance_profile [--url http://localhost:5000] [--runs 5]
+    python -m scripts.performance_profile [--url http://localhost:8000] [--runs 5]
 
 Output:
     - Console summary table
@@ -322,7 +322,7 @@ def write_markdown(data: Dict[str, Any], path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="BlockScope performance profiler")
-    parser.add_argument("--url",  default="http://localhost:5000", help="Backend base URL")
+    parser.add_argument("--url",  default="http://localhost:8000", help="Backend base URL (default: uvicorn port 8000)")
     parser.add_argument("--runs", default=5, type=int, help="Requests per endpoint")
     parser.add_argument("--out",  default=".", help="Output directory for reports")
     args = parser.parse_args()
