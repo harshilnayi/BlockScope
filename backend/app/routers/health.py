@@ -85,10 +85,10 @@ def liveness():
 
 @router.get("/ready")
 def readiness():
-    db            = check_database()
-    r             = check_redis()
-    disk          = check_disk()
-    memory        = check_memory()
+    db = check_database()
+    r = check_redis()
+    disk = check_disk()
+    memory = check_memory()
     response_time = check_response_time()
 
     checks = {
@@ -117,4 +117,4 @@ def readiness():
 def startup():
     if startup_complete:
         return {"status": "started"}
-    return JSONResponse(status_code=503, content={"status": "starting"})
+    return JSONResponse(status_code=503, content={"status": "starting"})

@@ -33,7 +33,7 @@ from app.core.database import get_by_id, get_db, paginate
 from app.core.logger import PerformanceTimer, log_error_context, logger
 from app.models.scan import Scan
 from app.schemas.scan_schema import ScanRequest, ScanResponse
-from app.metrics import CACHE_HITS, CACHE_MISSES   
+from app.metrics import CACHE_HITS, CACHE_MISSES
 
 # Router-level analysis cache.
 # Uses the existing AnalysisCache class (analysis/cache.py) which provides:

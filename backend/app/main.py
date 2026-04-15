@@ -209,6 +209,7 @@ async def lifespan(app: FastAPI):
 
     if settings.DEBUG and SECURITY_ENABLED:  # pragma: no cover
         try:
+            from app.core.settings import print_config_summary  # type: ignore[attr-defined]
             print_config_summary()
         except Exception:
             pass
@@ -334,6 +335,7 @@ if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
 # Prometheus metrics middleware
 # ----------------------------------------------
 
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     ACTIVE_REQUESTS.inc()
@@ -384,6 +386,7 @@ def metrics():
 # Global exception handlers
 # ----------------------------------------------
 
+
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
     """Custom 404 handler"""
@@ -412,6 +415,7 @@ async def internal_error_handler(request: Request, exc):
 # ----------------------------------------------
 # System endpoints
 # ----------------------------------------------
+
 
 @app.get("/", tags=["System"])
 async def root():
