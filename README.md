@@ -77,6 +77,8 @@ python scripts/setup_solc.py 0.8.20
 
 This downloads the pinned compiler directly from Solidity's official binaries
 endpoint and activates it for the existing `solc-select` launcher.
+The backend Docker images also run this bootstrap during image build, so
+native Slither analysis works in both local and containerized runs.
 
 ---
 
