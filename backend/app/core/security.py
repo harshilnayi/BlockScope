@@ -179,7 +179,7 @@ class FileValidator:
             try:
                 text = content.decode("utf-8")
             except UnicodeDecodeError:
-                return False, "Invalid file: not valid UTF-8 text"
+                return False, "Invalid file encoding: not valid UTF-8 text"
 
             # Check for suspicious patterns (basic check)
             suspicious_patterns = [

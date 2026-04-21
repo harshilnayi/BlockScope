@@ -44,6 +44,11 @@ services:
     restart: unless-stopped
     env_file:
       - backend/.env.development
+    environment:
+      DATABASE_URL: postgresql://blockscope_dev:dev_password_123@db:5432/blockscope_dev
+      REDIS_URL: redis://redis:6379/0
+      HOST: 0.0.0.0
+      PORT: 8000
     ports:
       - "8000:8000"
     volumes:

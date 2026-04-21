@@ -1,6 +1,9 @@
 """Wrapper around Slither for AST parsing."""
 
+import logging
 from pathlib import Path
+
+logger = logging.getLogger("blockscope.analysis")
 
 
 class SlitherWrapper:
@@ -14,7 +17,7 @@ class SlitherWrapper:
             self.Slither = Slither
             self.available = True
         except ImportError:
-            print("[WARNING]  Slither not installed. Install with: pip install slither-analyzer")
+            logger.warning("Slither not installed. Install with: pip install slither-analyzer")
             self.available = False
             self.Slither = None
 
@@ -39,10 +42,10 @@ class SlitherWrapper:
         try:
             # This will parse the contract
             slither = self.Slither(str(file_path))
-            print(f"[OK] Successfully parsed: {file_path.name}")
+            logger.debug("Successfully parsed %s with Slither", file_path.name)
             return slither
         except Exception as e:
-            print(f"[ERROR] Error parsing contract: {e}")
+            logger.debug("Slither parse failed for %s", file_path.name, exc_info=e)
             raise
 
     def get_ast_nodes(self, slither_obj):

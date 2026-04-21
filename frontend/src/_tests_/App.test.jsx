@@ -10,6 +10,10 @@ vi.mock('../apiClient', () => ({
   },
 }));
 
+vi.mock('react-joyride', () => ({
+  default: () => null,
+}));
+
 
 describe('App component', () => {
   test('renders without crashing', () => {

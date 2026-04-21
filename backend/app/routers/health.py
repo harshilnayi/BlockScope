@@ -3,11 +3,11 @@ import time
 
 import psutil
 import redis
+from app.core.config import settings
+from app.core.database import engine
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
-from app.core.database import engine
-from app.core.settings import settings
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -15,6 +15,7 @@ startup_complete = False
 
 
 # ── CHECKS ────────────────────────────────────────────────────────────────────
+
 
 def check_database():
     try:
@@ -37,7 +38,7 @@ def check_redis():
 def check_disk():
     usage = shutil.disk_usage("/")
     percent_used = round((usage.used / usage.total) * 100, 1)
-    free_gb = round(usage.free / (1024 ** 3), 2)
+    free_gb = round(usage.free / (1024**3), 2)
     status = "ok" if percent_used < 85 else "warning" if percent_used < 95 else "critical"
     return {"status": status, "percent_used": percent_used, "free_gb": free_gb}
 
@@ -45,7 +46,7 @@ def check_disk():
 def check_memory():
     mem = psutil.virtual_memory()
     percent_used = mem.percent
-    available_mb = round(mem.available / (1024 ** 2), 1)
+    available_mb = round(mem.available / (1024**2), 1)
     status = "ok" if percent_used < 80 else "warning" if percent_used < 95 else "critical"
     return {"status": status, "percent_used": percent_used, "available_mb": available_mb}
 
@@ -71,17 +72,36 @@ def check_response_time():
 
 # ── ENDPOINTS ─────────────────────────────────────────────────────────────────
 
+
 @router.get("/live")
 def liveness():
     return {"status": "alive"}
 
 
+@router.get("")
+def health():
+    db = check_database()
+    redis_status = check_redis()
+
+    overall_status = "healthy"
+    redis_required = settings.RATE_LIMIT_ENABLED and not settings.TESTING
+    if db["status"] == "error" or (redis_required and redis_status["status"] == "error"):
+        overall_status = "degraded"
+
+    return {
+        "status": overall_status,
+        "version": settings.APP_VERSION,
+        "database": db["status"],
+        "redis": redis_status["status"],
+    }
+
+
 @router.get("/ready")
 def readiness():
-    db            = check_database()
-    r             = check_redis()
-    disk          = check_disk()
-    memory        = check_memory()
+    db = check_database()
+    r = check_redis()
+    disk = check_disk()
+    memory = check_memory()
     response_time = check_response_time()
 
     checks = {

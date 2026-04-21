@@ -5,46 +5,36 @@ Secure, production-ready FastAPI application with comprehensive security feature
 
 import logging
 import sys
-from pathlib import Path
 import time
+from pathlib import Path
 
-from prometheus_client import generate_latest
-from fastapi.responses import Response
-from app.metrics import REQUEST_COUNT, REQUEST_LATENCY, ACTIVE_REQUESTS, CACHE_HITS, CACHE_MISSES, ACTIVE_USERS, APP_UPTIME,START_TIME
+from app.core.config import settings
+from app.core.logger import get_request_id, log_error_context, set_request_id
+from app.core.logging_config import setup_logging
+from app.metrics import (
+    ACTIVE_REQUESTS,
+    ACTIVE_USERS,
+    APP_UPTIME,
+    REQUEST_COUNT,
+    REQUEST_LATENCY,
+    START_TIME,
+)
 from app.routers.health import router as health_router
 from fastapi import FastAPI, Request
-from app.core.logging_config import setup_logging
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import generate_latest
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
-
-# Try to import security modules, fall back gracefully if not available
-try:
-    from app.core.settings import settings
-
-    SECURITY_ENABLED = True
-except ImportError:
-    # Fallback settings if core.config not available yet
-    class Settings:
-        APP_NAME = "BlockScope API"
-        APP_VERSION = "0.1.0"
-        DEBUG = True
-        ENABLE_API_DOCS = True
-        CORS_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
-        RATE_LIMIT_ENABLED = False
-        LOG_REQUESTS = True
-
-    settings = Settings()
-    SECURITY_ENABLED = False
-    print("⚠️  Running without security modules. Run setup to enable full security.")
+SECURITY_ENABLED = True
 
 # Import routers
 try:
     from app.routers.scan import router as scan_router
 except ImportError:
-    print("⚠️  Scan router not found. Please ensure app/routers/scan.py exists.")
+    print("Scan router not found. Please ensure app/routers/scan.py exists.")
     scan_router = None
 
 # Setup logging
@@ -56,58 +46,92 @@ app = FastAPI(
     title=settings.API_TITLE,
     description=settings.API_DESCRIPTION,
     version=settings.API_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.ENABLE_API_DOCS else None,
+    redoc_url="/redoc" if settings.ENABLE_API_DOCS else None,
 )
 
 app.include_router(health_router)
 
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    ACTIVE_REQUESTS.inc()
 
-    start = time.time()
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Attach a per-request correlation ID and echo it in the response."""
 
-    logger.info(f"→ {request.method} {request.url.path}")
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID")
+        request_id = set_request_id(request_id)
+        request.state.request_id = request_id
 
-    # Track authenticated users via API key header
-    api_key = request.headers.get("X-API-Key")
-    if api_key:
-        ACTIVE_USERS.inc()
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
 
-    response = await call_next(request)
 
-    duration = round((time.time() - start) * 1000, 2)
+class PerformanceLoggingMiddleware(BaseHTTPMiddleware):
+    """Log request timings and export request metrics."""
 
-    # logging
-    logger.info(
-        f"← {request.method} {request.url.path} "
-        f"| status={response.status_code} | {duration}ms"
-    )
+    SLOW_REQUEST_THRESHOLD_MS = 1000.0
 
-    # metrics
-    REQUEST_COUNT.labels(
-        method=request.method,
-        endpoint=request.url.path,
-        status=response.status_code
-    ).inc()
+    async def dispatch(self, request: Request, call_next):
+        ACTIVE_REQUESTS.inc()
+        start = time.perf_counter()
+        api_key = request.headers.get("X-API-Key")
 
-    REQUEST_LATENCY.labels(
-        endpoint=request.url.path
-    ).observe(duration / 1000)
+        if api_key:
+            ACTIVE_USERS.inc()
 
-    APP_UPTIME.set(time.time() - START_TIME)
+        logger.info(
+            "Request started",
+            extra={
+                "request_id": getattr(request.state, "request_id", get_request_id()),
+                "method": request.method,
+                "path": request.url.path,
+            },
+        )
 
-    ACTIVE_REQUESTS.dec()
+        response = None
+        try:
+            response = await call_next(request)
+            return response
+        finally:
+            duration_ms = round((time.perf_counter() - start) * 1000, 2)
+            status_code = getattr(response, "status_code", 500)
 
-    if api_key:
-        ACTIVE_USERS.dec()
+            level = (
+                logging.WARNING if duration_ms > self.SLOW_REQUEST_THRESHOLD_MS else logging.INFO
+            )
+            logger.log(
+                level,
+                "Request completed",
+                extra={
+                    "request_id": getattr(request.state, "request_id", get_request_id()),
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": status_code,
+                    "duration_ms": duration_ms,
+                },
+            )
 
-    return response
+            REQUEST_COUNT.labels(
+                method=request.method,
+                endpoint=request.url.path,
+                status=status_code,
+            ).inc()
+            REQUEST_LATENCY.labels(endpoint=request.url.path).observe(duration_ms / 1000)
+            APP_UPTIME.set(time.time() - START_TIME)
+
+            ACTIVE_REQUESTS.dec()
+            if api_key:
+                ACTIVE_USERS.dec()
+
+
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(PerformanceLoggingMiddleware)
+
 
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type="text/plain")
+
 
 # ===================================
 # STARTUP EVENTS
@@ -116,6 +140,7 @@ def metrics():
 async def startup_event():
     """Initialize application on startup"""
     import app.routers.health as health
+
     health.startup_complete = True
     logger.info("BlockScope API starting up")
 
@@ -133,26 +158,28 @@ async def startup_event():
             from app.core.rate_limit import rate_limit_redis
 
             await rate_limit_redis.connect()
-            logger.info("✅ Redis connected for rate limiting")
+            logger.info("Redis connected for rate limiting")
         except Exception as e:
-            logger.warning(f"⚠️  Redis connection failed: {e}")
+            logger.warning("Redis connection failed: %s", e)
 
     # Test database connection
     try:
-        from app.core.database import engine
+        from app.core.database import engine, init_db
 
         with engine.connect() as conn:
-            logger.info("✅ Database connected")
+            logger.info("Database connected")
+        init_db()
+        logger.info("Database tables ready")
     except Exception as e:
-        logger.warning(f"⚠️  Database connection failed: {e}")
+        logger.warning("Database connection failed: %s", e)
 
-    logger.info("✅ Application startup complete")
+    logger.info("Application startup complete")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
-    logger.info("👋 Shutting down application")
+    logger.info("Shutting down application")
 
     # Disconnect Redis if connected
     if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
@@ -160,11 +187,11 @@ async def shutdown_event():
             from app.core.rate_limit import rate_limit_redis
 
             await rate_limit_redis.disconnect()
-            logger.info("✅ Redis disconnected")
+            logger.info("Redis disconnected")
         except Exception as e:
-            logger.warning(f"⚠️  Redis disconnect failed: {e}")
+            logger.warning("Redis disconnect failed: %s", e)
 
-    logger.info("✅ Application shutdown complete")
+    logger.info("Application shutdown complete")
 
 
 # ===================================
@@ -177,9 +204,9 @@ if SECURITY_ENABLED:
         from app.core.security import setup_security_middleware
 
         setup_security_middleware(app)
-        logger.info("✅ Security middleware enabled")
+        logger.info("Security middleware enabled")
     except ImportError:
-        logger.warning("⚠️  Security middleware not available")
+        logger.warning("Security middleware not available")
 
         # Fallback basic CORS
         app.add_middleware(
@@ -198,7 +225,7 @@ else:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    logger.warning("⚠️  Running with permissive CORS (development mode)")
+    logger.warning("Running with permissive CORS (development mode)")
 
 # Add rate limiting middleware if available
 if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
@@ -211,9 +238,9 @@ if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
                 RateLimitMiddleware, redis_client=rate_limit_redis.redis, enabled=True
             )
 
-        logger.info("✅ Rate limiting enabled")
+        logger.info("Rate limiting enabled")
     except ImportError:
-        logger.warning("⚠️  Rate limiting not available")
+        logger.warning("Rate limiting not available")
 
 # ===================================
 # EXCEPTION HANDLERS
@@ -229,6 +256,7 @@ async def not_found_handler(request: Request, exc):
             "error": "not_found",
             "message": "The requested resource was not found",
             "path": str(request.url),
+            "request_id": getattr(request.state, "request_id", get_request_id()),
         },
     )
 
@@ -236,14 +264,21 @@ async def not_found_handler(request: Request, exc):
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
     """Custom 500 handler"""
-    logger.error(f"Internal error: {exc}")
+    log_error_context(
+        logger,
+        "Internal server error",
+        exc,
+        context={"request_id": getattr(request.state, "request_id", get_request_id())},
+    )
     return JSONResponse(
         status_code=500,
         content={
             "error": "internal_server_error",
             "message": "An internal server error occurred. Please try again later.",
+            "request_id": getattr(request.state, "request_id", get_request_id()),
         },
     )
+
 
 @app.get("/", tags=["System"])
 async def root():
@@ -310,9 +345,9 @@ async def api_info():
 # Include scan router
 if scan_router:
     app.include_router(scan_router, prefix="/api/v1", tags=["Scanning"])
-    logger.info("✅ Scan router registered at /api/v1/scan")
+    logger.info("Scan router registered at /api/v1/scan")
 else:
-    logger.error("❌ Scan router not available")
+    logger.error("Scan router not available")
 
 # ===================================
 # DEVELOPMENT HELPERS
@@ -353,7 +388,7 @@ if settings.DEBUG:
 # MAIN ENTRY POINT
 # ===================================
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     import uvicorn
 
     uvicorn.run(

@@ -3,12 +3,13 @@ BlockScope Configuration Module
 Handles all environment variables with validation using Pydantic Settings
 """
 
+import os
 import secrets
 from functools import lru_cache
 from typing import List, Optional
 
 from pydantic import EmailStr, Field, HttpUrl, PostgresDsn, RedisDsn, conint, constr, validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -16,6 +17,13 @@ class Settings(BaseSettings):
     Application settings with environment variable validation.
     All settings are loaded from environment variables.
     """
+
+    API_TITLE: str = Field(default="BlockScope API", description="OpenAPI title")
+    API_DESCRIPTION: str = Field(
+        default="Smart Contract Vulnerability Scanner with Security Features",
+        description="OpenAPI description",
+    )
+    API_VERSION: str = Field(default="1.0.0", description="OpenAPI version")
 
     # ==================== Application Settings ====================
     APP_NAME: str = Field(default="BlockScope", description="Application name")
@@ -139,6 +147,13 @@ class Settings(BaseSettings):
         """Parse CORS origins from comma-separated string or list"""
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
+        return v
+
+    @validator("CORS_ALLOW_METHODS", "CORS_ALLOW_HEADERS", pre=True)
+    def parse_cors_lists(cls, v):
+        """Parse comma-separated CORS method/header strings into lists."""
+        if isinstance(v, str):
+            return [item.strip() for item in v.split(",")]
         return v
 
     @validator("CORS_ORIGINS")
@@ -317,16 +332,14 @@ class Settings(BaseSettings):
     TESTING: bool = Field(default=False, description="Testing mode")
     TEST_DATABASE_URL: Optional[PostgresDsn] = Field(default=None, description="Test database URL")
 
-    # ==================== Config Class ====================
-    class Config:
-        """Pydantic config"""
-
-        env_file = (".env.development", ".env")
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-
-        # Allow extra fields from environment
-        extra = "ignore"
+    # ==================== Settings Config ====================
+    model_config = SettingsConfigDict(
+        env_file=(".env.development", ".env"),
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+        enable_decoding=False,
+    )
 
     # ==================== Computed Properties ====================
     @property
@@ -387,12 +400,10 @@ def get_settings() -> Settings:
         settings.validate_all()
         return settings
     except Exception as e:
-        print(f"❌ Configuration Error: {str(e)}")
+        print(f"Configuration Error: {str(e)}")
         print("\nPlease check your environment variables.")
         print("Required variables: DATABASE_URL, SECRET_KEY, JWT_SECRET_KEY")
-        print(
-            f"\nCurrent ENVIRONMENT: {Settings().ENVIRONMENT if hasattr(Settings(), 'ENVIRONMENT') else 'unknown'}"
-        )
+        print(f"\nCurrent ENVIRONMENT: {os.getenv('ENVIRONMENT', 'unknown')}")
         raise
 
 
@@ -439,11 +450,11 @@ def print_config_summary():
     print("=" * 60 + "\n")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # Test configuration loading
     try:
         settings = get_settings()
-        print("✅ Configuration loaded successfully!")
+        print("Configuration loaded successfully.")
         print_config_summary()
     except Exception as e:
-        print(f"❌ Configuration failed: {e}")
+        print(f"Configuration failed: {e}")

@@ -34,7 +34,10 @@ cd BlockScope
 # 2. Configure
 cp backend/.env.example backend/.env.development
 
-# 3. Run
+# 3. Install Solidity compiler (recommended for native Slither analysis)
+python scripts/setup_solc.py 0.8.20
+
+# 4. Run
 docker compose up -d
 ```
 
@@ -43,6 +46,37 @@ docker compose up -d
 | Frontend | http://localhost:5173 |
 | Backend API | http://localhost:8000 |
 | Swagger Docs | http://localhost:8000/docs |
+
+---
+
+## 🧪 Local Development
+
+Frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Backend:
+
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+If `solc-select install` fails on your machine, run:
+
+```bash
+python scripts/setup_solc.py 0.8.20
+```
+
+This downloads the pinned compiler directly from Solidity's official binaries
+endpoint and activates it for the existing `solc-select` launcher.
 
 ---
 

@@ -1,11 +1,15 @@
-const API_BASE_URL = 'http://localhost:5000/api/v1';
-const REQUEST_TIMEOUT = 15000; // 15 seconds
+const DEFAULT_API_BASE_URL = import.meta.env.DEV
+  ? 'http://localhost:8000/api/v1'
+  : '/api/v1';
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '');
+const REQUEST_TIMEOUT = Number(import.meta.env.VITE_API_TIMEOUT || 15000);
 
 export const apiClient = {
     scanContract: async (sourceCode, contractName) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-  
+
       try {
         const response = await fetch(`${API_BASE_URL}/scan`, {
           method: 'POST',
@@ -17,17 +21,17 @@ export const apiClient = {
           }),
           signal: controller.signal,
         });
-  
+
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
         }
-  
+
         return await response.json();
       } catch (error) {
         if (error.name === 'AbortError') {
           throw new Error('Request timed out. Please try again.');
         }
-  
+
         throw new Error('Failed to scan contract: ' + error.message);
       } finally {
         clearTimeout(timeoutId);

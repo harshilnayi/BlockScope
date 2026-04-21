@@ -22,6 +22,7 @@ from .models import ScanRequest, ScanResult
 from .rules.base import Finding as RuleFinding
 from .rules.base import VulnerabilityRule
 from .slither_wrapper import SlitherWrapper
+from .source_rules import run_source_rules
 
 logger = logging.getLogger("blockscope.analysis")
 
@@ -113,7 +114,13 @@ class AnalysisOrchestrator:
         rule_findings = self._run_rule_analysis(request)
         logger.info("Rule scan complete", extra={"finding_count": len(rule_findings)})
 
-        all_findings = self._merge_and_deduplicate(slither_findings, rule_findings)
+        source_rule_findings = self._run_source_rule_analysis(request)
+        logger.info("Source rule scan complete", extra={"finding_count": len(source_rule_findings)})
+
+        all_findings = self._merge_and_deduplicate(
+            slither_findings,
+            rule_findings + source_rule_findings,
+        )
         severity_breakdown = self._calculate_severity_breakdown(all_findings)
         overall_score = self._calculate_score(all_findings)
         summary = self._generate_summary(severity_breakdown, overall_score)
@@ -245,6 +252,19 @@ class AnalysisOrchestrator:
 
         return findings
 
+    def _run_source_rule_analysis(self, request: ScanRequest) -> List[PydanticFinding]:
+        """
+        Run lightweight source-based rules that do not depend on Slither.
+
+        These rules provide a meaningful fallback when compiler setup is
+        unavailable and also complement Slither for a few high-signal patterns.
+        """
+        try:
+            return run_source_rules(request.source_code)
+        except Exception as exc:
+            logger.warning("Source rule analysis failed", exc_info=exc)
+            return []
+
     # ──────────────────────────────────────────────
     # Private helpers — conversion
     # ──────────────────────────────────────────────
@@ -342,9 +362,7 @@ class AnalysisOrchestrator:
             ),
         )
 
-    def _calculate_severity_breakdown(
-        self, findings: List[PydanticFinding]
-    ) -> Dict[str, int]:
+    def _calculate_severity_breakdown(self, findings: List[PydanticFinding]) -> Dict[str, int]:
         """
         Count findings grouped by severity level.
 
@@ -455,6 +473,7 @@ class AnalysisOrchestrator:
 # ──────────────────────────────────────────────
 # Module-level utilities
 # ──────────────────────────────────────────────
+
 
 def _remove_temp_file(path: Optional[str]) -> None:
     """

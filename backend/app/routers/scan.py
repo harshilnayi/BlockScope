@@ -16,22 +16,24 @@ Design notes:
 """
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from analysis import AnalysisOrchestrator
+from analysis import ScanRequest as AnalysisScanRequest
+from analysis.models import Finding as AnalysisFinding
+from analysis.models import ScanResult
+from app.core.config import settings
+from app.core.database import get_by_id, get_db, paginate
+from app.core.logger import PerformanceTimer, log_error_context, logger
+from app.metrics import CACHE_HITS, CACHE_MISSES
+from app.models.scan import Scan
+from app.schemas.scan_schema import ScanRequest, ScanResponse
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
-from analysis import AnalysisOrchestrator
-from analysis import ScanRequest as AnalysisScanRequest
-from analysis.models import ScanResult
-from app.core.database import get_by_id, get_db, paginate
-from app.core.logger import PerformanceTimer, log_error_context, logger
-from app.models.scan import Scan
-from app.schemas.scan_schema import ScanRequest, ScanResponse
-from app.metrics import CACHE_HITS, CACHE_MISSES   
-
-_scan_cache: dict[str, dict] = {} 
+_scan_cache: dict[str, dict[str, Any]] = {}
 
 # ──────────────────────────────────────────────
 # Security modules (optional, graceful fallback)
@@ -54,6 +56,7 @@ except ImportError:
     def rate_limit(**kwargs: Any):  # type: ignore[misc]
         return lambda func: func
 
+
 # ──────────────────────────────────────────────
 # Module-level singletons
 # ──────────────────────────────────────────────
@@ -72,6 +75,7 @@ if SECURITY_ENABLED:  # pragma: no cover
 # ──────────────────────────────────────────────
 # Helper utilities
 # ──────────────────────────────────────────────
+
 
 def _conditional_rate_limit(**kwargs: Any):
     """
@@ -150,6 +154,7 @@ def _findings_to_json(scan_result: ScanResult) -> List[Dict[str, Any]]:
             "description": f.description,
             "severity": f.severity,
             "line_number": getattr(f, "line_number", None),
+            "recommendation": getattr(f, "recommendation", None),
         }
         for f in scan_result.findings
     ]
@@ -227,24 +232,54 @@ def _run_analysis_and_persist(
         HTTPException: 500 if the analysis unexpectedly fails.
     """
     ctx = {"contract_name": contract_name, "file_path": file_path, "request_id": request_id}
+    is_test_run = os.getenv("TESTING", "").lower() in {"1", "true", "yes"}
+    cache_enabled = settings.CACHE_SCAN_RESULTS and not is_test_run
 
-    # Cache key (based on source code)
     cache_key = source_code
+    cached_payload = _scan_cache.get(cache_key) if cache_enabled else None
 
-# Check cache
-    if cache_key in _scan_cache:
+    if cached_payload is not None:
         CACHE_HITS.labels(cache_type="scan").inc()
         _scan_logger.info("Cache hit", extra=ctx)
-        return _scan_cache[cache_key]
-
-    # Run analysis
-    with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
-        analysis_request = AnalysisScanRequest(
-            source_code=source_code,
+        findings_json = [dict(item) for item in cached_payload["findings"]]
+        scan_result = ScanResult(
             contract_name=contract_name,
-            file_path=file_path,
+            source_code=source_code,
+            findings=[
+                AnalysisFinding(
+                    title=item["title"],
+                    description=item["description"],
+                    severity=item["severity"],
+                    line_number=item.get("line_number"),
+                    recommendation=item.get("recommendation"),
+                )
+                for item in findings_json
+            ],
+            vulnerabilities_count=cached_payload["vulnerabilities_count"],
+            severity_breakdown=dict(cached_payload["severity_breakdown"]),
+            overall_score=cached_payload["overall_score"],
+            summary=cached_payload["summary"],
+            timestamp=datetime.now(timezone.utc),
         )
-        scan_result: ScanResult = orchestrator.analyze(analysis_request)
+    else:
+        with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
+            analysis_request = AnalysisScanRequest(
+                source_code=source_code,
+                contract_name=contract_name,
+                file_path=file_path,
+            )
+            scan_result = orchestrator.analyze(analysis_request)
+
+        findings_json = _findings_to_json(scan_result)
+        if cache_enabled:
+            _scan_cache[cache_key] = {
+                "findings": findings_json,
+                "vulnerabilities_count": scan_result.vulnerabilities_count,
+                "severity_breakdown": dict(scan_result.severity_breakdown),
+                "overall_score": scan_result.overall_score,
+                "summary": scan_result.summary,
+            }
+            CACHE_MISSES.labels(cache_type="scan").inc()
 
     _scan_logger.info(
         "Analysis complete",
@@ -257,11 +292,10 @@ def _run_analysis_and_persist(
 
     # Persist
     with PerformanceTimer("db_persist_scan", _scan_logger, extra=ctx):
-        findings_json = _findings_to_json(scan_result)
         scan_record = _build_scan_record(scan_result, findings_json)
         db.add(scan_record)
         db.commit()
-        db.refresh(scan_record) 
+        db.refresh(scan_record)
 
     _scan_logger.info(
         "Scan persisted",
@@ -270,16 +304,13 @@ def _run_analysis_and_persist(
 
     response = _scan_record_to_response(scan_record)
 
-    # Store in cache
-    _scan_cache[cache_key] = response
-    CACHE_MISSES.labels(cache_type="scan").inc()
-
     return response
 
 
 # ──────────────────────────────────────────────
 # Endpoints
 # ──────────────────────────────────────────────
+
 
 @router.post("/scan", response_model=ScanResponse, summary="Scan contract source code")
 @_conditional_rate_limit(per_minute=5, per_hour=20)
@@ -471,10 +502,7 @@ async def list_scans(
 
     try:
         with PerformanceTimer("db_list_scans", _scan_logger, extra={"request_id": request_id}):
-            base_query = (
-                db.query(Scan)
-                .order_by(Scan.scanned_at.desc())
-            )
+            base_query = db.query(Scan).order_by(Scan.scanned_at.desc())
             scans: List[Scan] = paginate(base_query, skip=skip, limit=limit)
 
         return [_scan_record_to_response(scan) for scan in scans]
