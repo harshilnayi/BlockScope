@@ -27,8 +27,16 @@ def check_database():
 
 
 def check_redis():
+    if not settings.RATE_LIMIT_ENABLED and not settings.TESTING:
+        return {"status": "disabled"}
+
     try:
-        r = redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+        r = redis.from_url(
+            settings.redis_url_str,
+            password=settings.REDIS_PASSWORD or None,
+            socket_connect_timeout=settings.REDIS_SOCKET_CONNECT_TIMEOUT,
+            socket_timeout=settings.REDIS_SOCKET_TIMEOUT,
+        )
         r.ping()
         return {"status": "ok"}
     except Exception as e:
@@ -85,7 +93,7 @@ def health():
 
     overall_status = "healthy"
     redis_required = settings.RATE_LIMIT_ENABLED and not settings.TESTING
-    if db["status"] == "error" or (redis_required and redis_status["status"] == "error"):
+    if db["status"] == "error" or (redis_required and redis_status["status"] != "ok"):
         overall_status = "degraded"
 
     return {
@@ -114,7 +122,7 @@ def readiness():
 
     critical = (
         db["status"] == "error"
-        or r["status"] == "error"
+        or (settings.RATE_LIMIT_ENABLED and not settings.TESTING and r["status"] != "ok")
         or disk["status"] == "critical"
         or memory["status"] == "critical"
         or response_time["status"] == "critical"

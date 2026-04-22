@@ -70,15 +70,23 @@ class TestHealthHelpers:
         redis_client = MagicMock()
         redis_client.ping.return_value = True
 
-        with patch.object(health.redis, "from_url", return_value=redis_client):
+        with patch.object(health.settings, "RATE_LIMIT_ENABLED", True), patch.object(
+            health.redis, "from_url", return_value=redis_client
+        ):
             assert health.check_redis() == {"status": "ok"}
 
     def test_check_redis_error(self):
-        with patch.object(health.redis, "from_url", side_effect=RuntimeError("redis down")):
+        with patch.object(health.settings, "RATE_LIMIT_ENABLED", True), patch.object(
+            health.redis, "from_url", side_effect=RuntimeError("redis down")
+        ):
             result = health.check_redis()
 
         assert result["status"] == "error"
         assert "redis down" in result["detail"]
+
+    def test_check_redis_disabled(self):
+        with patch.object(health.settings, "RATE_LIMIT_ENABLED", False):
+            assert health.check_redis() == {"status": "disabled"}
 
     def test_check_disk_warning_and_critical(self):
         disk_usage = namedtuple("usage", ["total", "used", "free"])

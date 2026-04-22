@@ -230,13 +230,9 @@ else:
 # Add rate limiting middleware if available
 if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
     try:
-        from app.core.rate_limit import RateLimitMiddleware, rate_limit_redis
+        from app.core.rate_limit import RateLimitMiddleware
 
-        @app.on_event("startup")
-        async def add_rate_limit():
-            app.add_middleware(
-                RateLimitMiddleware, redis_client=rate_limit_redis.redis, enabled=True
-            )
+        app.add_middleware(RateLimitMiddleware, enabled=True)
 
         logger.info("Rate limiting enabled")
     except ImportError:

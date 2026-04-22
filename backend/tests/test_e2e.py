@@ -17,6 +17,8 @@ import pytest
 # FastAPI testing
 from fastapi.testclient import TestClient
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 # ============================================================================
 # FIXTURES
 # ============================================================================
@@ -167,6 +169,7 @@ contract Test {
         capture_output=True,
         text=True,
         timeout=30,
+        cwd=REPO_ROOT,
     )
 
     print(f"   Return code: {result.returncode}")
@@ -200,6 +203,7 @@ def test_cli_scan_with_sample_sol(sample_sol_path):
         capture_output=True,
         text=True,
         timeout=30,
+        cwd=REPO_ROOT,
     )
 
     print(f"   Return code: {result.returncode}")
@@ -226,6 +230,7 @@ def test_cli_help_command():
         capture_output=True,
         text=True,
         timeout=10,
+        cwd=REPO_ROOT,
     )
 
     print(f"   Return code: {result.returncode}")
