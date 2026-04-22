@@ -207,3 +207,4 @@ prometheus-fastapi-instrumentator==6.1.0
 # - Update regularly: pip install -U -r requirements.txt
 # - Pin versions in production for stability
 psutil>=5.9.0
+cachetools>=5.3.0
