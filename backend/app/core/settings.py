@@ -92,6 +92,14 @@ class Settings(BaseSettings):
     MAX_FILENAME_LENGTH: int = 255
 
     # =========================
+    # Middleware
+    # =========================
+    # Minimum response body size (bytes) before GZip middleware compresses it.
+    # Responses smaller than this threshold are sent uncompressed to avoid the
+    # CPU overhead of compressing already-small payloads.
+    GZIP_MINIMUM_SIZE: int = 1024
+
+    # =========================
     # Logging
     # =========================
     LOG_LEVEL: str = "INFO"

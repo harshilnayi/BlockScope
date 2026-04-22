@@ -5,12 +5,45 @@
 **Build tool:** Vite 5.4.21  
 **Target:** Production build of `frontend/` (commit on branch `main`)
 
-> [!NOTE]
-> A fully automated Lighthouse CI run requires a running production server
-> and a headless Chrome instance (not available in this Windows dev environment).
-> This document records all **measurable build-time evidence** and the
-> **optimization implementation** that drives the performance scores.
-> To generate a live Lighthouse JSON: `npx lighthouse http://localhost:5173 --output json --output-path lighthouse.json`
+> [!CAUTION]
+> **Live Lighthouse report not yet committed.**
+> Score ranges below are *estimated* from measured bundle sizes — not from an
+> actual Lighthouse run.  To satisfy the "Frontend load < 1 s" deliverable you
+> must run Lighthouse against the production build and commit the output files.
+> See [§ 0 — How to generate a live Lighthouse report](#0-how-to-generate-a-live-lighthouse-report) below.
+
+---
+
+## 0. How to Generate a Live Lighthouse Report
+
+```bash
+# 1. Build the production bundle
+cd frontend
+npm run build
+
+# 2. Serve it locally (preview server)
+npm run preview
+# Server starts at http://localhost:4173
+
+# 3. In a new terminal, run Lighthouse (requires Node ≥ 18)
+npx lighthouse http://localhost:4173 \
+  --output json,html \
+  --output-path ./lighthouse-report \
+  --preset=desktop
+
+# Optional: also run the mobile preset
+npx lighthouse http://localhost:4173 \
+  --output json,html \
+  --output-path ./lighthouse-report-mobile
+
+# 4. Commit the output files
+git add frontend/lighthouse-report.report.json frontend/lighthouse-report.report.html
+git commit -m "chore: add live Lighthouse audit results"
+```
+
+> [!IMPORTANT]
+> Commit both `lighthouse-report.report.json` *and* `lighthouse-report.report.html`
+> so the PR can be verified. Even a single desktop run is sufficient to close P0-1.
 
 ---
 

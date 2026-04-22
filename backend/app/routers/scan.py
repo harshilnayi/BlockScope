@@ -263,10 +263,13 @@ async def _run_analysis_and_persist(
         _scan_logger.info("Analysis cache hit — skipping Slither, persisting new DB row", extra=ctx)
         scan_result = cached_result
     else:
+        # Cache miss: count it, then run the full analysis pipeline.
         CACHE_MISSES.labels(cache_type="scan").inc()
-    # -- Run analysis in a dedicated executor (non-blocking) -------------------
-    # Only executed when there is no cached analysis result.
-    if cached_result is None:
+        # -- Run analysis in a dedicated executor (non-blocking) ---------------
+        # Slither invokes the Solidity compiler in a subprocess; running it
+        # directly here would block FastAPI's event loop and serialise all
+        # concurrent requests.  We offload it to a bounded thread pool so the
+        # loop stays free to accept and dispatch other requests.
         with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
             analysis_request = AnalysisScanRequest(
                 source_code=source_code,

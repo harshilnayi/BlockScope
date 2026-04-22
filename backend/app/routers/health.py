@@ -1,13 +1,21 @@
 import shutil
 import time
+from pathlib import Path
 
-import psutil
+try:
+    import psutil as _psutil
+    _PSUTIL_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _psutil = None  # type: ignore[assignment]
+    _PSUTIL_AVAILABLE = False
+
 try:
     import redis as _redis_module
     _REDIS_AVAILABLE = True
 except ImportError:  # pragma: no cover
     _redis_module = None  # type: ignore[assignment]
     _REDIS_AVAILABLE = False
+
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -42,15 +50,21 @@ def check_redis():
 
 
 def check_disk():
-    usage = shutil.disk_usage("/")
+    # Use Path(__file__).anchor so the check targets the correct drive root
+    # on Windows (e.g. "C:\\") and non-root Linux deployments, rather than
+    # hard-coding "/" which can give misleading results on multi-drive setups.
+    disk_root = Path(__file__).anchor
+    usage = shutil.disk_usage(disk_root)
     percent_used = round((usage.used / usage.total) * 100, 1)
     free_gb = round(usage.free / (1024 ** 3), 2)
     status = "ok" if percent_used < 85 else "warning" if percent_used < 95 else "critical"
-    return {"status": status, "percent_used": percent_used, "free_gb": free_gb}
+    return {"status": status, "percent_used": percent_used, "free_gb": free_gb, "path": disk_root}
 
 
 def check_memory():
-    mem = psutil.virtual_memory()
+    if not _PSUTIL_AVAILABLE:
+        return {"status": "unavailable", "detail": "psutil package not installed"}
+    mem = _psutil.virtual_memory()
     percent_used = mem.percent
     available_mb = round(mem.available / (1024 ** 2), 1)
     status = "ok" if percent_used < 80 else "warning" if percent_used < 95 else "critical"
@@ -58,11 +72,18 @@ def check_memory():
 
 
 def check_response_time():
-    """Measure internal API responsiveness with a lightweight operation."""
+    """Measure interpreter responsiveness with a lightweight in-process operation.
+
+    Note: this intentionally benchmarks Python interpreter speed (sum of a
+    small range) rather than making an outbound HTTP call, to avoid circular
+    dependencies and network noise in the health check.  It is a proxy for
+    "is the process severely CPU-starved" rather than end-to-end API latency.
+    For true latency measurement use the /api/v1/performance endpoint.
+    """
     start = time.time()
 
-    # Lightweight CPU-bound work (no external calls)
-    total = sum(range(1000))
+    # Lightweight CPU-bound work (no external calls, no I/O).
+    _ = sum(range(1000))
 
     elapsed_ms = round((time.time() - start) * 1000, 2)
 

@@ -44,7 +44,7 @@ python -m scripts.performance_profile --url http://localhost:8000 --runs 10
 ## Load Test Results (Measured — Locust)
 
 Results are from **actual Locust executions** against the local FastAPI backend.  
-Source: `backend/tests/load/benchmarks.md`
+Source: [`backend/tests/load/benchmarks.md`](../tests/load/benchmarks.md)
 
 ### Scenario 1 — 1 Concurrent User
 
@@ -98,7 +98,7 @@ Aggregated avg: **8 260 ms** · Failures: 0 (stable under load, but slow)
 The primary bottleneck is **Slither execution** — the Solidity compiler is invoked synchronously in an OS subprocess for each unique contract. This cannot be parallelised beyond the available CPU cores.
 
 Implemented mitigations:
-1. **Analysis result cache** (`_analysis_result_cache` in `scan.py`) — deduplicated Slither invocations by SHA-256 key. Cache hit serves from memory and only runs a DB insert (~5 ms).
+1. **Analysis result cache** (`_analysis_cache` in `scan.py`) — deduplicated Slither invocations by SHA-256 key. Cache hit serves from memory and only runs a DB insert (~5 ms).
 2. **Bounded thread pool** (`_SCAN_EXECUTOR`, max 4 workers) — prevents event-loop starvation.
 3. **GZip compression** — reduces response payload ≥50%.
 
@@ -157,9 +157,8 @@ pytest tests/test_memory_leak.py -v --no-cov
 # Expected: 8 passed in ~2s
 ```
 
-Long-running mitigation: `_analysis_result_cache` is capped at **512 entries** with FIFO eviction.
-For production deployments requiring TTL-based expiry and LRU ordering, use the
-`AnalysisCache` class in `analysis/cache.py`.
+Long-running mitigation: `_analysis_cache` is capped at **512 entries** with LRU eviction and a 30-minute TTL.
+For implementation details see the `AnalysisCache` class in `analysis/cache.py`.
 
 ---
 

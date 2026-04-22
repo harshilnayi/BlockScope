@@ -342,7 +342,7 @@ async def log_requests(request: Request, call_next):
 
     start = time.time()
 
-    logger.info(f"→ {request.method} {request.url.path}")
+    logger.info("→ %s %s", request.method, request.url.path)
 
     # Track authenticated users via API key header
     api_key = request.headers.get("X-API-Key")
@@ -354,8 +354,11 @@ async def log_requests(request: Request, call_next):
     duration = round((time.time() - start) * 1000, 2)
 
     logger.info(
-        f"← {request.method} {request.url.path} "
-        f"| status={response.status_code} | {duration}ms"
+        "← %s %s | status=%s | %sms",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration,
     )
 
     REQUEST_COUNT.labels(
@@ -403,7 +406,7 @@ async def not_found_handler(request: Request, exc):
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
     """Custom 500 handler"""
-    logger.error(f"Internal error: {exc}")
+    logger.error("Internal error: %s", exc)
     return JSONResponse(
         status_code=500,
         content={

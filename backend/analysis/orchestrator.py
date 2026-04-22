@@ -14,7 +14,26 @@ Performance notes:
   - Identical contracts are served from the in-memory LRU cache (30-min TTL).
   - Slither analysis and rule detection share a single temp file.
   - Both passes run through a ``ThreadPoolExecutor`` when multiple CPU cores
-    are available, reducing wall-clock time by ~40–60 % on average hardware.
+    are available, reducing wall-clock time by ~40–60 % on average hardware.
+
+Two-tier cache architecture
+---------------------------
+BlockScope uses **two independent LRU caches** keyed by the same SHA-256
+hash of ``(source_code, contract_name)``:
+
+* **Router cache** (``_analysis_cache`` in ``app/routers/scan.py``):
+  512 entries, 30-min TTL.  Checked *before* the orchestrator is even
+  called.  A hit here means ``orchestrator.analyze()`` is never invoked.
+
+* **Orchestrator cache** (``analysis_cache`` in ``analysis/cache.py``):
+  128-entry default, 30-min TTL.  Only reached on a router cache miss.
+  Provides a defence-in-depth safety net for scan requests that bypass the
+  router (e.g. direct in-process calls from tests or the CLI profiler).
+
+On a **router hit**: analysis is skipped entirely; only a DB insert runs.
+On a **router miss + orchestrator hit**: Slither is skipped; the cached
+``ScanResult`` is returned to the router, which persists a fresh DB row.
+On a **double miss**: Slither runs, results are stored in both caches.
 """
 
 import logging
