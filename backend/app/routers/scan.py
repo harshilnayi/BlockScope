@@ -22,18 +22,22 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from analysis import AnalysisOrchestrator
+from analysis import ScanRequest as AnalysisScanRequest
+from analysis.cache import AnalysisCache
+from analysis.models import ScanResult
+from app.core.database import get_by_id, get_db, paginate
+from app.core.logger import PerformanceTimer, log_error_context, logger
+from app.metrics import CACHE_HITS, CACHE_MISSES
+from app.models.scan import Scan
+from app.schemas.scan_schema import ScanRequest, ScanResponse
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
-from analysis import AnalysisOrchestrator
-from analysis import ScanRequest as AnalysisScanRequest
-from analysis.models import ScanResult
-from analysis.cache import AnalysisCache
-from app.core.database import get_by_id, get_db, paginate
-from app.core.logger import PerformanceTimer, log_error_context, logger
-from app.models.scan import Scan
-from app.schemas.scan_schema import ScanRequest, ScanResponse
-from app.metrics import CACHE_HITS, CACHE_MISSES
+try:
+    from app.core.settings import settings
+except ImportError:  # pragma: no cover
+    from app.core.config import settings  # type: ignore[no-redef]
 
 # Router-level analysis cache.
 # Uses the existing AnalysisCache class (analysis/cache.py) which provides:
@@ -88,6 +92,7 @@ if SECURITY_ENABLED:  # pragma: no cover
 # ----------------------------------------------
 # Helper utilities
 # ----------------------------------------------
+
 
 def _conditional_rate_limit(**kwargs: Any):
     """
@@ -166,6 +171,7 @@ def _findings_to_json(scan_result: ScanResult) -> List[Dict[str, Any]]:
             "description": f.description,
             "severity": f.severity,
             "line_number": getattr(f, "line_number", None),
+            "recommendation": getattr(f, "recommendation", None),
         }
         for f in scan_result.findings
     ]
@@ -249,6 +255,8 @@ async def _run_analysis_and_persist(
         HTTPException: 500 if the analysis unexpectedly fails.
     """
     ctx = {"contract_name": contract_name, "file_path": file_path, "request_id": request_id}
+    is_test_run = os.getenv("TESTING", "").lower() in {"1", "true", "yes"}
+    cache_enabled = settings.CACHE_SCAN_RESULTS and not is_test_run
 
     # Cache key: SHA-256 of (source_code, contract_name) so two differently-named
     # contracts with identical source are each cached independently.
@@ -257,7 +265,7 @@ async def _run_analysis_and_persist(
     # Try the analysis cache first.
     # Even on a hit we still persist a fresh DB row so every caller gets
     # their own scan_id and their own history record.
-    cached_result: Optional[ScanResult] = _analysis_cache.get(cache_key)
+    cached_result: Optional[ScanResult] = _analysis_cache.get(cache_key) if cache_enabled else None
     if cached_result is not None:
         CACHE_HITS.labels(cache_type="scan").inc()
         _scan_logger.info("Analysis cache hit — skipping Slither, persisting new DB row", extra=ctx)
@@ -298,7 +306,6 @@ async def _run_analysis_and_persist(
     # This ensures every caller gets a unique scan_id and their own history
     # entry, regardless of whether the analysis result came from cache.
     with PerformanceTimer("db_persist_scan", _scan_logger, extra=ctx):
-        findings_json = _findings_to_json(scan_result)
         scan_record = _build_scan_record(scan_result, findings_json)
         # Overwrite contract_name with the caller-supplied value so the DB
         # record reflects what *this* caller asked for, not the cached result.
@@ -318,6 +325,7 @@ async def _run_analysis_and_persist(
 # ----------------------------------------------
 # Endpoints
 # ----------------------------------------------
+
 
 @router.post("/scan", response_model=ScanResponse, summary="Scan contract source code")
 @_conditional_rate_limit(per_minute=5, per_hour=20)
@@ -509,10 +517,7 @@ async def list_scans(
 
     try:
         with PerformanceTimer("db_list_scans", _scan_logger, extra={"request_id": request_id}):
-            base_query = (
-                db.query(Scan)
-                .order_by(Scan.scanned_at.desc())
-            )
+            base_query = db.query(Scan).order_by(Scan.scanned_at.desc())
             scans: List[Scan] = paginate(base_query, skip=skip, limit=limit)
 
         return [_scan_record_to_response(scan) for scan in scans]

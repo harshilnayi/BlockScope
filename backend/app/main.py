@@ -21,7 +21,7 @@ from prometheus_client import generate_latest
 sys.path.append(str(Path(__file__).parent.parent))
 
 from app.core.logging_config import setup_logging
-from app.core.logger import logger, set_request_id
+from app.core.logger import get_request_id, log_error_context, logger, set_request_id
 from app.metrics import (
     REQUEST_COUNT,
     REQUEST_LATENCY,
@@ -53,19 +53,24 @@ try:
 
     SECURITY_ENABLED = True
 except ImportError:
-    # Fallback settings if core.config not available yet
-    class Settings:
-        APP_NAME = "BlockScope API"
-        APP_VERSION = "0.1.0"
-        DEBUG = True
-        ENABLE_API_DOCS = True
-        CORS_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
-        RATE_LIMIT_ENABLED = False
-        LOG_REQUESTS = True
+    try:
+        from app.core.config import settings  # type: ignore[no-redef]
 
-    settings = Settings()
-    SECURITY_ENABLED = False
-    print("⚠️  Running without security modules. Run setup to enable full security.")
+        SECURITY_ENABLED = True
+    except ImportError:
+        # Fallback settings if core.config not available yet
+        class Settings:
+            APP_NAME = "BlockScope API"
+            APP_VERSION = "0.1.0"
+            DEBUG = True
+            ENABLE_API_DOCS = True
+            CORS_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
+            RATE_LIMIT_ENABLED = False
+            LOG_REQUESTS = True
+
+        settings = Settings()
+        SECURITY_ENABLED = False
+        print("⚠️  Running without security modules. Run setup to enable full security.")
 
 # ----------------------------------------------
 # Routers
@@ -74,7 +79,7 @@ try:
     from app.routers.scan import router as scan_router
     _scan_router_available = True
 except ImportError:
-    print("⚠️  Scan router not found. Please ensure app/routers/scan.py exists.")
+    print("Scan router not found. Please ensure app/routers/scan.py exists.")
     scan_router = None
     _scan_router_available = False
 
@@ -204,7 +209,9 @@ async def lifespan(app: FastAPI):
     """Handle application startup and graceful shutdown via lifespan context."""
     # -- Startup ----------------------------------------------------------
     logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
+
     import app.routers.health as health
+
     health.startup_complete = True
 
     if settings.DEBUG and SECURITY_ENABLED:  # pragma: no cover
@@ -260,6 +267,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Application shutdown complete")
 
+
 # ----------------------------------------------
 # FastAPI application instance
 # ----------------------------------------------
@@ -287,15 +295,19 @@ app.add_middleware(
     minimum_size=getattr(settings, "GZIP_MINIMUM_SIZE", 1024),
 )
 
+# 1. Request ID + performance logging
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(PerformanceLoggingMiddleware)
+
 # Add security middleware if available
 if SECURITY_ENABLED:
     try:
         from app.core.security import setup_security_middleware
 
         setup_security_middleware(app)
-        logger.info("✅ Security middleware enabled")
+        logger.info("Security middleware enabled")
     except ImportError:
-        logger.warning("⚠️  Security middleware not available")
+        logger.warning("Security middleware not available")
 
         # Fallback basic CORS
         app.add_middleware(
@@ -314,25 +326,21 @@ else:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    logger.warning("⚠️  Running with permissive CORS (development mode)")
+    logger.warning("Running with permissive CORS (development mode)")
 
 # Add rate limiting middleware if available
 if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:
     try:
-        from app.core.rate_limit import RateLimitMiddleware, rate_limit_redis
+        from app.core.rate_limit import RateLimitMiddleware
 
-        @app.on_event("startup")
-        async def add_rate_limit():
-            app.add_middleware(
-                RateLimitMiddleware, redis_client=rate_limit_redis.redis, enabled=True
-            )
+        app.add_middleware(RateLimitMiddleware, enabled=True)
 
-        logger.info("✅ Rate limiting enabled")
+        logger.info("Rate limiting enabled")
     except ImportError:
-        logger.warning("⚠️  Rate limiting not available")
+        logger.warning("Rate limiting not available")
 
 # ----------------------------------------------
-# Prometheus metrics middleware
+# Prometheus metrics endpoint
 # ----------------------------------------------
 
 
@@ -399,6 +407,7 @@ async def not_found_handler(request: Request, exc):
             "error": "not_found",
             "message": "The requested resource was not found",
             "path": str(request.url),
+            "request_id": getattr(request.state, "request_id", get_request_id()),
         },
     )
 
@@ -406,12 +415,18 @@ async def not_found_handler(request: Request, exc):
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
     """Custom 500 handler"""
-    logger.error("Internal error: %s", exc)
+    log_error_context(
+        logger,
+        "Internal server error",
+        exc,
+        context={"request_id": getattr(request.state, "request_id", get_request_id())},
+    )
     return JSONResponse(
         status_code=500,
         content={
             "error": "internal_server_error",
             "message": "An internal server error occurred. Please try again later.",
+            "request_id": getattr(request.state, "request_id", get_request_id()),
         },
     )
 

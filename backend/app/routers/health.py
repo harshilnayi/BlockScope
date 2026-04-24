@@ -20,7 +20,11 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from app.core.database import engine
-from app.core.settings import settings
+
+try:
+    from app.core.settings import settings
+except ImportError:  # pragma: no cover
+    from app.core.config import settings  # type: ignore[no-redef]
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -41,8 +45,25 @@ def check_database():
 def check_redis():
     if not _REDIS_AVAILABLE:
         return {"status": "unavailable", "detail": "redis package not installed"}
+
+    # Skip if rate limiting is disabled and we're not in test mode
+    rate_limit_enabled = getattr(settings, "RATE_LIMIT_ENABLED", False)
+    testing = getattr(settings, "TESTING", False)
+    if not rate_limit_enabled and not testing:
+        return {"status": "disabled"}
+
     try:
-        r = _redis_module.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+        redis_url = getattr(settings, "REDIS_URL", None) or getattr(
+            settings, "redis_url_str", "redis://localhost:6379"
+        )
+        redis_password = getattr(settings, "REDIS_PASSWORD", None) or None
+        connect_timeout = getattr(settings, "REDIS_SOCKET_CONNECT_TIMEOUT", 2)
+
+        r = _redis_module.from_url(
+            redis_url,
+            password=redis_password,
+            socket_connect_timeout=connect_timeout,
+        )
         r.ping()
         return {"status": "ok"}
     except Exception as e:
@@ -104,6 +125,26 @@ def liveness():
     return {"status": "alive"}
 
 
+@router.get("")
+def health():
+    db = check_database()
+    redis_status = check_redis()
+
+    overall_status = "healthy"
+    rate_limit_enabled = getattr(settings, "RATE_LIMIT_ENABLED", False)
+    testing = getattr(settings, "TESTING", False)
+    redis_required = rate_limit_enabled and not testing
+    if db["status"] == "error" or (redis_required and redis_status["status"] != "ok"):
+        overall_status = "degraded"
+
+    return {
+        "status": overall_status,
+        "version": settings.APP_VERSION,
+        "database": db["status"],
+        "redis": redis_status["status"],
+    }
+
+
 @router.get("/ready")
 def readiness():
     db = check_database()
@@ -120,9 +161,11 @@ def readiness():
         "response_time": response_time,
     }
 
+    rate_limit_enabled = getattr(settings, "RATE_LIMIT_ENABLED", False)
+    testing = getattr(settings, "TESTING", False)
     critical = (
         db["status"] == "error"
-        or r["status"] == "error"
+        or (rate_limit_enabled and not testing and r["status"] != "ok")
         or disk["status"] == "critical"
         or memory["status"] == "critical"
         or response_time["status"] == "critical"
@@ -138,4 +181,4 @@ def readiness():
 def startup():
     if startup_complete:
         return {"status": "started"}
-    return JSONResponse(status_code=503, content={"status": "starting"})
+    return JSONResponse(status_code=503, content={"status": "starting"})

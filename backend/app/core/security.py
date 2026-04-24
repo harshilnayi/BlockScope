@@ -29,6 +29,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         """Add security headers to response"""
         response = await call_next(request)
 
+        docs_request = request.url.path.startswith("/docs") or request.url.path.startswith("/redoc")
+
         # Prevent clickjacking attacks
         response.headers["X-Frame-Options"] = "DENY"
 
@@ -42,17 +44,34 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         # Content Security Policy
-        csp_directives = [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",  # Adjust for your needs
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: https:",
-            "font-src 'self' data:",
-            "connect-src 'self'",
-            "frame-ancestors 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-        ]
+        csp_directives = ["default-src 'self'"]
+        if docs_request:
+            csp_directives.extend(
+                [
+                    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net",
+                    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+                    "img-src 'self' data: https://fastapi.tiangolo.com https:",
+                    "font-src 'self' data: https://cdn.jsdelivr.net",
+                    "connect-src 'self' https://cdn.jsdelivr.net",
+                ]
+            )
+        else:
+            csp_directives.extend(
+                [
+                    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+                    "style-src 'self' 'unsafe-inline'",
+                    "img-src 'self' data: https:",
+                    "font-src 'self' data:",
+                    "connect-src 'self'",
+                ]
+            )
+        csp_directives.extend(
+            [
+                "frame-ancestors 'none'",
+                "base-uri 'self'",
+                "form-action 'self'",
+            ]
+        )
         response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
 
         # Strict Transport Security (HTTPS only)
@@ -179,7 +198,7 @@ class FileValidator:
             try:
                 text = content.decode("utf-8")
             except UnicodeDecodeError:
-                return False, "Invalid file: not valid UTF-8 text"
+                return False, "Invalid file encoding: not valid UTF-8 text"
 
             # Check for suspicious patterns (basic check)
             suspicious_patterns = [

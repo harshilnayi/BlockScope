@@ -2,31 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { AlertCircle, CheckCircle, AlertTriangle, Info, Upload, Loader, BarChart3, Shield, Code2, Zap, ArrowRight, Sparkles, Copy, Download, Search, History, Star, StarOff, Printer } from 'lucide-react';
 import Joyride from 'react-joyride';
 import { Tooltip } from 'react-tooltip';
-
-// ─── API ────────────────────────────────────────────────────────────────────
-
-const API_BASE_URL = (import.meta.env.VITE_API_URL ?? '/api/v1').replace(/\/$/, '');
-
-const apiClient = {
-  scanContract: async (sourceCode, contractName) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/scan`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source_code: sourceCode,
-          contract_name: contractName || 'UnnamedContract',
-          file_path: 'api_upload'
-        })
-      });
-      if (!response.ok) throw new Error(`API error: ${response.status}`);
-      return await response.json();
-    } catch (error) {
-      console.error('Scan API error:', error);
-      throw new Error('Failed to scan contract: ' + error.message);
-    }
-  }
-};
+import { apiClient } from './apiClient';
 
 // ─── Module-level constants & utilities ─────────────────────────────────────
 
@@ -60,6 +36,8 @@ const formatFileSize = (bytes) => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
+
+const normalizeSeverity = (severity) => String(severity || 'LOW').toUpperCase();
 
 const escapeHtml = (str) => {
   if (!str) return '';
@@ -198,6 +176,8 @@ const FindingCard = ({ finding }) => {
   const [copyState, setCopyState] = useState('idle');
   const copyTimerRef = useRef(null);
   useEffect(() => () => clearTimeout(copyTimerRef.current), []);
+  const severity = normalizeSeverity(finding.severity);
+  const codeSnippet = finding.code ?? finding.code_snippet;
 
   const handleCopyToClipboard = async (e) => {
     e.stopPropagation();
@@ -211,20 +191,20 @@ const FindingCard = ({ finding }) => {
       role="button"
       tabIndex={0}
       aria-expanded={isExpanded}
-      aria-label={`${finding.severity} finding: ${finding.title}. Click to ${isExpanded ? 'collapse' : 'expand'}.`}
-      className={`border-l-4 rounded-lg p-6 transition-all duration-300 cursor-pointer hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${colorMap[finding.severity] ?? 'border-gray-300 bg-gray-50 hover:bg-gray-100'}`}
+      aria-label={`${severity} finding: ${finding.title}. Click to ${isExpanded ? 'collapse' : 'expand'}.`}
+      className={`border-l-4 rounded-lg p-6 transition-all duration-300 cursor-pointer hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${colorMap[severity] ?? 'border-gray-300 bg-gray-50 hover:bg-gray-100'}`}
       onClick={() => setIsExpanded(!isExpanded)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setIsExpanded(!isExpanded); } }}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4 flex-1">
           <div className={`mt-1 ${
-            finding.severity === 'CRITICAL' ? 'text-red-600'
-            : finding.severity === 'HIGH'   ? 'text-orange-600'
-            : finding.severity === 'MEDIUM' ? 'text-yellow-600'
+            severity === 'CRITICAL' ? 'text-red-600'
+            : severity === 'HIGH'   ? 'text-orange-600'
+            : severity === 'MEDIUM' ? 'text-yellow-600'
             : 'text-blue-600'
           }`}>
-            {getIcon(finding.severity)}
+            {getIcon(severity)}
           </div>
           <div className="flex-1">
             <h3
@@ -240,15 +220,15 @@ const FindingCard = ({ finding }) => {
                 Line {finding.line_number}
               </span>
             )}
-            {isExpanded && finding.code && (
+            {isExpanded && codeSnippet && (
               <div className="mt-4 bg-gray-900 p-4 rounded-lg overflow-x-auto">
-                <pre className="text-xs text-green-400 font-mono">{finding.code}</pre>
+                <pre className="text-xs text-green-400 font-mono">{codeSnippet}</pre>
               </div>
             )}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <SeverityBadge severity={finding.severity} />
+          <SeverityBadge severity={severity} />
           <button
             onClick={handleCopyToClipboard}
             className="p-2 text-gray-500 hover:text-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
@@ -271,22 +251,22 @@ const FindingCard = ({ finding }) => {
 const ResultsList = ({ findings, loading, contractName }) => {
   const [searchTerm,      setSearchTerm]      = useState('');
   const [filterSeverity,  setFilterSeverity]  = useState('All');
-  const [copyLinkState, setCopyLinkState] = useState('idle');
+  const [copyLinkState,   setCopyLinkState]   = useState('idle');
   const [printError,      setPrintError]      = useState('');
 
   const copyLinkTimerRef = useRef(null);
   useEffect(() => () => clearTimeout(copyLinkTimerRef.current), []);
 
-  const critical = useMemo(() => findings.filter(f => f.severity === 'CRITICAL').length, [findings]);
-  const high     = useMemo(() => findings.filter(f => f.severity === 'HIGH').length,     [findings]);
-  const medium   = useMemo(() => findings.filter(f => f.severity === 'MEDIUM').length,   [findings]);
-  const low      = useMemo(() => findings.filter(f => f.severity === 'LOW').length,      [findings]);
+  const critical = useMemo(() => findings.filter(f => normalizeSeverity(f.severity) === 'CRITICAL').length, [findings]);
+  const high     = useMemo(() => findings.filter(f => normalizeSeverity(f.severity) === 'HIGH').length,     [findings]);
+  const medium   = useMemo(() => findings.filter(f => normalizeSeverity(f.severity) === 'MEDIUM').length,   [findings]);
+  const low      = useMemo(() => findings.filter(f => normalizeSeverity(f.severity) === 'LOW').length,      [findings]);
 
   const filteredFindings = useMemo(() => findings.filter(f => {
     const matchesSearch =
       (f.title ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (f.description ?? '').toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesFilter = filterSeverity === 'All' || f.severity === filterSeverity;
+      (f.description ?? '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = filterSeverity === 'All' || normalizeSeverity(f.severity) === filterSeverity;
     return matchesSearch && matchesFilter;
   }), [findings, searchTerm, filterSeverity]);
 
@@ -320,7 +300,7 @@ const ResultsList = ({ findings, loading, contractName }) => {
       <h1>Security Scan Report for ${escapeHtml(contractName)}</h1>
       <div class="summary"><p><strong>Total:</strong> ${findings.length}</p><p><strong>Critical:</strong> ${critical}</p><p><strong>High:</strong> ${high}</p><p><strong>Medium:</strong> ${medium}</p><p><strong>Low:</strong> ${low}</p></div>
       <h2>Findings</h2>
-      ${findings.map((f, i) => `<div class="finding"><h3>${i + 1}. ${escapeHtml(f.title)}</h3><p class="severity">Severity: ${escapeHtml(f.severity)}</p><p>${escapeHtml(f.description)}</p>${f.line_number ? `<p>Line: ${escapeHtml(String(f.line_number))}</p>` : ''}${f.code ? `<pre>${escapeHtml(f.code)}</pre>` : ''}</div>`).join('')}
+      ${findings.map((f, i) => `<div class="finding"><h3>${i + 1}. ${escapeHtml(f.title)}</h3><p class="severity">Severity: ${escapeHtml(normalizeSeverity(f.severity))}</p><p>${escapeHtml(f.description)}</p>${f.line_number ? `<p>Line: ${escapeHtml(String(f.line_number))}</p>` : ''}${(f.code ?? f.code_snippet) ? `<pre>${escapeHtml(f.code ?? f.code_snippet)}</pre>` : ''}</div>`).join('')}
       <p><em>Generated by BlockScope on ${new Date().toLocaleString()}</em></p>
       </body></html>`;
     printWindow.document.write(content);
@@ -329,7 +309,7 @@ const ResultsList = ({ findings, loading, contractName }) => {
   };
 
   const handleDownloadMarkdown = () => {
-    const md = `# Security Scan Report for ${contractName}\n\n## Summary\n- **Total**: ${findings.length}\n- **Critical**: ${critical}\n- **High**: ${high}\n- **Medium**: ${medium}\n- **Low**: ${low}\n\n## Findings\n\n${findings.map((f, i) => `### ${i + 1}. ${f.title}\n- **Severity**: ${f.severity}\n- **Description**: ${f.description}\n${f.line_number ? `- **Line**: ${f.line_number}\n` : ''}${f.code ? `\`\`\`solidity\n${f.code}\n\`\`\`\n` : ''}`).join('\n')}\n\n---\n*Generated on ${new Date().toLocaleString()}*\n`;
+    const md = `# Security Scan Report for ${contractName}\n\n## Summary\n- **Total**: ${findings.length}\n- **Critical**: ${critical}\n- **High**: ${high}\n- **Medium**: ${medium}\n- **Low**: ${low}\n\n## Findings\n\n${findings.map((f, i) => `### ${i + 1}. ${f.title}\n- **Severity**: ${normalizeSeverity(f.severity)}\n- **Description**: ${f.description}\n${f.line_number ? `- **Line**: ${f.line_number}\n` : ''}${(f.code ?? f.code_snippet) ? `\`\`\`solidity\n${f.code ?? f.code_snippet}\n\`\`\`\n` : ''}`).join('\n')}\n\n---\n*Generated on ${new Date().toLocaleString()}*\n`;
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -363,7 +343,7 @@ const ResultsList = ({ findings, loading, contractName }) => {
           <Loader className="w-16 h-16 text-blue-600 animate-spin" aria-hidden="true" />
           <Zap className="w-8 h-8 text-yellow-500 absolute top-4 right-4 animate-pulse" aria-hidden="true" />
         </div>
-        <p className="text-gray-600 mt-6 text-lg font-semibold">Scanning with Semgrep...</p>
+        <p className="text-gray-600 mt-6 text-lg font-semibold">Scanning with BlockScope...</p>
         <p className="text-gray-500 mt-2">Analyzing security vulnerabilities</p>
       </div>
     );
@@ -857,7 +837,12 @@ export default function App() {
       setContractName(uploadedContractName);
 
       const response    = await apiClient.scanContract(code, uploadedContractName);
-      const scanFindings = Array.isArray(response.findings) ? response.findings : [];
+      const scanFindings = Array.isArray(response.findings)
+        ? response.findings.map((finding) => ({
+            ...finding,
+            severity: normalizeSeverity(finding.severity),
+          }))
+        : [];
       setFindings(scanFindings);
 
       const newScan = {
@@ -865,10 +850,10 @@ export default function App() {
         contractCode: code,
         findings:     scanFindings,
         findingsSummary: {
-          critical: scanFindings.filter(f => f.severity === 'CRITICAL').length,
-          high:     scanFindings.filter(f => f.severity === 'HIGH').length,
-          medium:   scanFindings.filter(f => f.severity === 'MEDIUM').length,
-          low:      scanFindings.filter(f => f.severity === 'LOW').length,
+          critical: scanFindings.filter(f => normalizeSeverity(f.severity) === 'CRITICAL').length,
+          high:     scanFindings.filter(f => normalizeSeverity(f.severity) === 'HIGH').length,
+          medium:   scanFindings.filter(f => normalizeSeverity(f.severity) === 'MEDIUM').length,
+          low:      scanFindings.filter(f => normalizeSeverity(f.severity) === 'LOW').length,
           total:    scanFindings.length
         },
         date:     new Date().toLocaleString(),
@@ -969,7 +954,7 @@ export default function App() {
               Help
             </button>
           </div>
-          <p className="text-blue-300 font-semibold">Powered by Semgrep</p>
+          <p className="text-blue-300 font-semibold">Powered by Slither + custom rules</p>
         </div>
       </nav>
 
@@ -983,7 +968,7 @@ export default function App() {
                 <h2 className="text-4xl font-black text-gray-900">Smart Contract Security Scanner</h2>
               </div>
               <p className="text-gray-600 text-lg mb-8">
-                Upload your Solidity contracts for instant vulnerability detection powered by Semgrep
+                Upload your Solidity contracts for instant vulnerability detection powered by Slither and custom rules
               </p>
               <ScanForm
                 onSubmit={handleScan}
@@ -1004,7 +989,7 @@ export default function App() {
               <div className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-6 text-white">
                 <AlertCircle className="w-8 h-8 text-red-400 mb-4" />
                 <h3 className="font-bold text-lg mb-2">Real-time Analysis</h3>
-                <p className="text-white/70">Instant vulnerability detection using advanced Semgrep rules</p>
+                <p className="text-white/70">Instant vulnerability detection using Slither and custom security rules</p>
               </div>
               <div className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-6 text-white">
                 <BarChart3 className="w-8 h-8 text-blue-400 mb-4" />
@@ -1050,7 +1035,7 @@ export default function App() {
       {/* Footer */}
       <footer className="relative border-t border-white/20 mt-20 py-8 bg-white/5 backdrop-blur">
         <div className="max-w-7xl mx-auto px-6 text-center text-white/70 text-sm">
-          <p>BlockScope Security Scanner | Powered by Semgrep | Always conduct thorough audits before deployment</p>
+          <p>BlockScope Security Scanner | Powered by Slither + custom rules | Always conduct thorough audits before deployment</p>
         </div>
       </footer>
 

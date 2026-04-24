@@ -14,7 +14,7 @@ Performance notes:
   - Identical contracts are served from the in-memory LRU cache (30-min TTL).
   - Slither analysis and rule detection share a single temp file.
   - Both passes run through a ``ThreadPoolExecutor`` when multiple CPU cores
-    are available, reducing wall-clock time by ~40–60 % on average hardware.
+    are available, reducing wall-clock time by ~40–60 % on average hardware.
 
 Two-tier cache architecture
 ---------------------------
@@ -50,6 +50,7 @@ from .models import ScanRequest, ScanResult
 from .rules.base import Finding as RuleFinding
 from .rules.base import VulnerabilityRule
 from .slither_wrapper import SlitherWrapper
+from .source_rules import run_source_rules
 
 logger = logging.getLogger("blockscope.analysis")
 
@@ -126,10 +127,11 @@ class AnalysisOrchestrator:
         1. Check the analysis cache — return immediately on hit.
         2. Write a single shared temp file for both Slither and rule passes.
         3. Run Slither and custom rules concurrently via a thread pool.
-        4. Deduplicates findings.
-        5. Calculates severity breakdown and security score.
-        6. Generates a human-readable summary.
-        7. Stores the result in the cache and returns a :class:`ScanResult`.
+        4. Run lightweight source-based rules (no compiler dependency).
+        5. Deduplicates findings.
+        6. Calculates severity breakdown and security score.
+        7. Generates a human-readable summary.
+        8. Stores the result in the cache and returns a :class:`ScanResult`.
 
         Args:
             request: ``ScanRequest`` containing source code and metadata.
@@ -159,6 +161,9 @@ class AnalysisOrchestrator:
 
         # -- 2. Write shared temp file ------------------------------------
         tmp_file_path: Optional[str] = None
+        slither_findings: List[PydanticFinding] = []
+        rule_findings: List[PydanticFinding] = []
+
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".sol", delete=False, encoding="utf-8"
@@ -167,9 +172,6 @@ class AnalysisOrchestrator:
                 tmp_file_path = tmp_file.name
 
             # -- 3. Concurrent analysis -----------------------------------
-            slither_findings: List[PydanticFinding] = []
-            rule_findings: List[PydanticFinding] = []
-
             future_slither = _ANALYSIS_POOL.submit(
                 self._run_slither_analysis_from_file,
                 tmp_file_path,
@@ -204,8 +206,17 @@ class AnalysisOrchestrator:
         finally:
             _remove_temp_file(tmp_file_path)
 
-        # -- 4-6. Aggregate, score, summarise -----------------------------
-        all_findings = self._merge_and_deduplicate(slither_findings, rule_findings)
+        # -- 4. Source-based rules (no compiler required) -----------------
+        source_rule_findings = self._run_source_rule_analysis(request)
+        logger.info(
+            "Source rule scan complete",
+            extra={"finding_count": len(source_rule_findings)},
+        )
+
+        # -- 5-7. Aggregate, score, summarise -----------------------------
+        all_findings = self._merge_and_deduplicate(
+            slither_findings, rule_findings + source_rule_findings
+        )
         severity_breakdown = self._calculate_severity_breakdown(all_findings)
         overall_score = self._calculate_score(all_findings)
         summary = self._generate_summary(severity_breakdown, overall_score)
@@ -222,7 +233,7 @@ class AnalysisOrchestrator:
             timestamp=datetime.now(timezone.utc),
         )
 
-        # -- 7. Store in cache ---------------------------------------------
+        # -- 8. Store in cache ---------------------------------------------
         analysis_cache.set(cache_key, result)
 
         logger.info(
@@ -236,10 +247,6 @@ class AnalysisOrchestrator:
             },
         )
         return result
-
-    # ----------------------------------------------
-    # Private helpers — analysis steps
-    # ----------------------------------------------
 
     # ----------------------------------------------
     # Private helpers — concurrent analysis passes
@@ -323,6 +330,19 @@ class AnalysisOrchestrator:
         except Exception as exc:
             logger.warning("Rule analysis setup failed", exc_info=exc)
         return findings
+
+    def _run_source_rule_analysis(self, request: ScanRequest) -> List[PydanticFinding]:
+        """
+        Run lightweight source-based rules that do not depend on Slither.
+
+        These rules provide a meaningful fallback when compiler setup is
+        unavailable and also complement Slither for a few high-signal patterns.
+        """
+        try:
+            return run_source_rules(request.source_code)
+        except Exception as exc:
+            logger.warning("Source rule analysis failed", exc_info=exc)
+            return []
 
     # ----------------------------------------------
     # Private helpers — conversion
@@ -421,9 +441,7 @@ class AnalysisOrchestrator:
             ),
         )
 
-    def _calculate_severity_breakdown(
-        self, findings: List[PydanticFinding]
-    ) -> Dict[str, int]:
+    def _calculate_severity_breakdown(self, findings: List[PydanticFinding]) -> Dict[str, int]:
         """
         Count findings grouped by severity level.
 
@@ -534,6 +552,7 @@ class AnalysisOrchestrator:
 # ----------------------------------------------
 # Module-level utilities
 # ----------------------------------------------
+
 
 def _remove_temp_file(path: Optional[str]) -> None:
     """

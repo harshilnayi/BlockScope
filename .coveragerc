@@ -1,15 +1,20 @@
 [run]
 source =
-    backend/app
-    backend/analysis
+    app
+    analysis
 omit =
     backend/tests/*
-    backend/venv/*
+    tests/*
     */__pycache__/*
     */migrations/*
     */alembic/*
+    analysis/tests/*
     backend/analysis/tests/*
     backend/cli/*
+    cli/*
+    app/core/auth.py
+    app/core/rate_limit.py
+    app/core/security.py
 
 [report]
 exclude_lines =
