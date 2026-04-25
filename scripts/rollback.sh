@@ -1,34 +1,49 @@
 #!/bin/bash
-set -e
+# =============================================================================
+# BlockScope — Rollback Script
+# =============================================================================
+# Rolls back the application by restoring a database backup and restarting services.
+#
+# Usage:
+#   ./scripts/rollback.sh <backup-file>
+# =============================================================================
 
-echo "Starting rollback..."
+set -euo pipefail
 
-BACKUP_FILE=$1
+BACKUP_FILE="${1:-}"
 
 if [ -z "$BACKUP_FILE" ]; then
-  echo "Usage: ./rollback.sh <backup-file>"
-  exit 1
+    echo "Usage: ./rollback.sh <backup-file>"
+    echo ""
+    echo "Available backups:"
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    ls -lh "$SCRIPT_DIR/../backups"/backup_*.sql.gz 2>/dev/null || echo "  No backups found."
+    exit 1
 fi
 
-# Resolve script directory safely
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DOCKER_DIR="$SCRIPT_DIR/../docker"
-BACKUP_PATH="$SCRIPT_DIR/$BACKUP_FILE"
+PROJECT_ROOT="$SCRIPT_DIR/.."
+COMPOSE_FILE="$PROJECT_ROOT/docker/docker-compose.prod.yml"
 
-if [ ! -f "$BACKUP_PATH" ]; then
-  echo "Backup file not found: $BACKUP_PATH"
-  exit 1
+# Resolve backup path
+if [ -f "$BACKUP_FILE" ]; then
+    BACKUP_PATH="$BACKUP_FILE"
+elif [ -f "$PROJECT_ROOT/backups/$BACKUP_FILE" ]; then
+    BACKUP_PATH="$PROJECT_ROOT/backups/$BACKUP_FILE"
+else
+    echo "ERROR: Backup file not found: $BACKUP_FILE"
+    exit 1
 fi
 
-cd "$DOCKER_DIR" || { echo "Failed to enter docker directory"; exit 1; }
+echo "[$(date)] Starting rollback from: $BACKUP_PATH"
 
-echo "Stopping backend and frontend..."
-docker compose -f docker-compose.prod.yml stop backend frontend
+echo "[$(date)] Stopping backend and frontend..."
+docker compose -f "$COMPOSE_FILE" stop backend frontend
 
-echo "Restoring database from $BACKUP_FILE..."
+echo "[$(date)] Restoring database..."
 gunzip -c "$BACKUP_PATH" | docker exec -i blockscope-postgres psql -U blockscope blockscope
 
-echo "Restarting services..."
-docker compose -f docker-compose.prod.yml start backend frontend
+echo "[$(date)] Restarting services..."
+docker compose -f "$COMPOSE_FILE" start backend frontend
 
-echo "Rollback completed successfully."
+echo "[$(date)] Rollback completed successfully."
