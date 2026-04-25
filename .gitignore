@@ -413,6 +413,7 @@ postgres-data/
 *.dump
 *.sql.gz
 backup/
+backups/
 
 # ===================================
 # Docker
