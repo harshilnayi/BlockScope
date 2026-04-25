@@ -1,49 +1,42 @@
-from prometheus_client import Counter, Histogram, Gauge
-import time
+"""BlockScope Prometheus metrics definitions."""
 
-# total requests
+from prometheus_client import Counter, Gauge, Histogram
+
+# Total requests
 REQUEST_COUNT = Counter(
     "blockscope_requests_total",
     "Total API requests",
-    ["method", "endpoint", "status"]
+    ["method", "endpoint", "status"],
 )
 
-# response time
+# Response time
 REQUEST_LATENCY = Histogram(
     "blockscope_request_latency_seconds",
     "Request latency",
-    ["endpoint"]
+    ["endpoint"],
 )
 
-# active requests
+# Active requests (in-flight)
 ACTIVE_REQUESTS = Gauge(
     "blockscope_active_requests",
-    "Active requests"
+    "Active requests currently being processed",
 )
 
-# cache metrics
+# Cache metrics
 CACHE_HITS = Counter(
     "blockscope_cache_hits_total",
     "Total cache hits",
-    ["cache_type"]
+    ["cache_type"],
 )
 
 CACHE_MISSES = Counter(
     "blockscope_cache_misses_total",
     "Total cache misses",
-    ["cache_type"]
+    ["cache_type"],
 )
 
-# active users (authenticated sessions)
-ACTIVE_USERS = Gauge(
-    "blockscope_active_users",
-    "Currently active authenticated users"
-)
-
-# uptime
-START_TIME = time.time()
-
-APP_UPTIME = Gauge(
-    "blockscope_uptime_seconds",
-    "Application uptime in seconds"
+# Renamed: was ACTIVE_USERS, now correctly reflects authenticated requests
+active_authenticated_requests = Gauge(
+    "blockscope_active_authenticated_requests",
+    "Currently active authenticated (API-key bearing) requests",
 )
