@@ -1,6 +1,7 @@
 """Application settings and configuration."""
 from typing import List
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -45,7 +46,7 @@ class Settings(BaseSettings):
     # =========================
     # Database
     # =========================
-    DATABASE_URL: str = "postgresql://postgres:CHANGE_ME@localhost:5432/blockscope"
+    DATABASE_URL: str = ""  # Must be set in .env
     SQLALCHEMY_ECHO: bool = True
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
@@ -96,6 +97,20 @@ class Settings(BaseSettings):
     # =========================
     LOG_LEVEL: str = "INFO"
     LOG_REQUESTS: bool = True
+
+    # =========================
+    # Metrics
+    # =========================
+    METRICS_API_KEY: str = ""  # Set in production to protect /metrics
+
+    @model_validator(mode="after")
+    def _validate_secrets_in_production(self):
+        if not self.DEBUG:
+            if not self.SECRET_KEY:
+                raise ValueError("SECRET_KEY must be set in production (.env)")
+            if not self.JWT_SECRET_KEY:
+                raise ValueError("JWT_SECRET_KEY must be set in production (.env)")
+        return self
 
     model_config = SettingsConfigDict(
         env_file=(".env.development", ".env"),
