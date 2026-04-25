@@ -306,6 +306,7 @@ async def _run_analysis_and_persist(
     # This ensures every caller gets a unique scan_id and their own history
     # entry, regardless of whether the analysis result came from cache.
     with PerformanceTimer("db_persist_scan", _scan_logger, extra=ctx):
+        findings_json = _findings_to_json(scan_result)
         scan_record = _build_scan_record(scan_result, findings_json)
         # Overwrite contract_name with the caller-supplied value so the DB
         # record reflects what *this* caller asked for, not the cached result.
