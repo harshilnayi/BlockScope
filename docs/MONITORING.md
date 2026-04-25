@@ -363,7 +363,7 @@ Make sure Docker networking allows inter-container access. The `host.docker.inte
 ## File Structure
 
 ```
-isok/
+BlockScope/
 ├── docker-compose.monitoring.yml     # Spin up Prometheus + Grafana
 ├── monitoring/
 │   ├── prometheus.yml                # Prometheus scrape configuration
