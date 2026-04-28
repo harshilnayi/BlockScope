@@ -24,7 +24,7 @@ logger = logging.getLogger("blockscope.cache")
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-_DEFAULT_MAX_SIZE: int = 128
+_DEFAULT_MAX_SIZE: int = 512
 _DEFAULT_TTL_SECONDS: float = 1_800.0  # 30 minutes
 
 

@@ -49,28 +49,22 @@ setup_logging()
 # Settings (with graceful fallback)
 # ----------------------------------------------
 try:
-    from app.core.settings import settings
-
+    from app.core.config import settings
     SECURITY_ENABLED = True
 except ImportError:
-    try:
-        from app.core.config import settings  # type: ignore[no-redef]
+    # Fallback settings if core.config not available yet
+    class Settings:
+        APP_NAME = "BlockScope API"
+        APP_VERSION = "0.1.0"
+        DEBUG = True
+        ENABLE_API_DOCS = True
+        CORS_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
+        RATE_LIMIT_ENABLED = False
+        LOG_REQUESTS = True
 
-        SECURITY_ENABLED = True
-    except ImportError:
-        # Fallback settings if core.config not available yet
-        class Settings:
-            APP_NAME = "BlockScope API"
-            APP_VERSION = "0.1.0"
-            DEBUG = True
-            ENABLE_API_DOCS = True
-            CORS_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
-            RATE_LIMIT_ENABLED = False
-            LOG_REQUESTS = True
-
-        settings = Settings()
-        SECURITY_ENABLED = False
-        print("⚠️  Running without security modules. Run setup to enable full security.")
+    settings = Settings()
+    SECURITY_ENABLED = False
+    print("⚠️  Running without security modules. Run setup to enable full security.")
 
 # ----------------------------------------------
 # Routers
@@ -254,6 +248,13 @@ async def lifespan(app: FastAPI):
         from analysis.orchestrator import _ANALYSIS_POOL
         _ANALYSIS_POOL.shutdown(wait=False, cancel_futures=True)
         logger.info("Analysis thread pool shut down")
+    except Exception as exc:  # pragma: no cover
+        logger.debug("Analysis thread pool shutdown skipped: %s", exc)
+
+    try:
+        from app.routers.scan import _SCAN_EXECUTOR
+        _SCAN_EXECUTOR.shutdown(wait=False, cancel_futures=True)
+        logger.info("Scan thread pool shut down")
     except Exception as exc:  # pragma: no cover
         logger.debug("Thread pool shutdown skipped: %s", exc)
 

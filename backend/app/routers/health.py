@@ -21,10 +21,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from app.core.database import engine
 
-try:
-    from app.core.settings import settings
-except ImportError:  # pragma: no cover
-    from app.core.config import settings  # type: ignore[no-redef]
+from app.core.config import settings  # type: ignore[no-redef]
 
 router = APIRouter(prefix="/health", tags=["health"])
 

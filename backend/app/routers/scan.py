@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 
 from analysis import AnalysisOrchestrator
 from analysis import ScanRequest as AnalysisScanRequest
-from analysis.cache import AnalysisCache
+from analysis.cache import analysis_cache as _analysis_cache
 from analysis.models import ScanResult
 from app.core.database import get_by_id, get_db, paginate
 from app.core.logger import PerformanceTimer, log_error_context, logger
@@ -34,20 +34,16 @@ from app.schemas.scan_schema import ScanRequest, ScanResponse
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
-try:
-    from app.core.settings import settings
-except ImportError:  # pragma: no cover
-    from app.core.config import settings  # type: ignore[no-redef]
+from app.core.config import settings
 
 # Router-level analysis cache.
-# Uses the existing AnalysisCache class (analysis/cache.py) which provides:
+# Uses the existing analysis_cache singleton (analysis/cache.py) which provides:
 #   - LRU eviction via OrderedDict
 #   - TTL-based expiry (default 30 min)
 #   - Thread-safety via threading.Lock
 #   - Hit/miss statistics accessible via .stats
 # Every request still inserts its own DB row so each caller gets a unique
 # scan_id; only the expensive Slither analysis is de-duplicated.
-_analysis_cache = AnalysisCache(max_size=512, ttl_seconds=1_800)
 
 # ----------------------------------------------
 # Security modules (optional, graceful fallback)
@@ -260,7 +256,7 @@ async def _run_analysis_and_persist(
 
     # Cache key: SHA-256 of (source_code, contract_name) so two differently-named
     # contracts with identical source are each cached independently.
-    cache_key = AnalysisCache.make_key(source_code, contract_name)
+    cache_key = _analysis_cache.make_key(source_code, contract_name)
 
     # Try the analysis cache first.
     # Even on a hit we still persist a fresh DB row so every caller gets

@@ -271,6 +271,43 @@ class TestOrchestratorCaching:
 
         assert result1.contract_name != result2.contract_name
 
+    def test_findings_serialization_regression(self):
+        """
+        Regression test for F821 'findings_json' undefined variable.
+        This ensures the scan router can serialize findings without crashing.
+        """
+        from app.routers.scan import _findings_to_json
+        from analysis.models import ScanResult, Finding
+        from datetime import datetime, timezone
+
+        # Create a dummy scan result with a few findings
+        mock_result = ScanResult(
+            contract_name="TestContract",
+            source_code="contract Test {}",
+            findings=[
+                Finding(
+                    title="Test Issue",
+                    severity="high",
+                    description="This is a test issue",
+                    line_number=10,
+                    recommendation="Fix it"
+                )
+            ],
+            vulnerabilities_count=1,
+            severity_breakdown={"high": 1},
+            overall_score=95,
+            summary="1 high",
+            timestamp=datetime.now(timezone.utc)
+        )
+
+        # This should execute without raising NameError/AttributeError
+        findings_json = _findings_to_json(mock_result)
+        
+        assert len(findings_json) == 1
+        assert findings_json[0]["title"] == "Test Issue"
+        assert findings_json[0]["severity"] == "high"
+        assert findings_json[0]["line_number"] == 10
+
 
 # ─── Live endpoint performance tests ─────────────────────────────────────────
 # These tests require the backend to be running at BASE_URL.

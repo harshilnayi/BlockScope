@@ -108,6 +108,18 @@ Remaining work for high-concurrency:
 
 ---
 
+## Multi-user SLA Remediation Plan
+
+To address the failing SLAs for 10+ concurrent users, the following architectural improvements are planned:
+
+| Phase | Remediations | Goal |
+|---|---|---|
+| **Phase 1: Short Term** | Optimize Slither execution parameters and local process pool management. | Reduce p95 latency for 10 users to < 2.5 s |
+| **Phase 2: Medium Term** | Implement an asynchronous worker pattern (Celery/Redis) for scan analysis. | Meet < 2 s SLA for 10 users; eliminate HTTP timeouts |
+| **Phase 3: Long Term** | Horizontal scaling of analysis workers across multiple containers/nodes. | Meet < 2 s SLA for 50+ concurrent users |
+
+---
+
 ## Key Optimisations Implemented
 
 ### Backend

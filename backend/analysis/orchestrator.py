@@ -31,9 +31,7 @@ hash of ``(source_code, contract_name)``:
   router (e.g. direct in-process calls from tests or the CLI profiler).
 
 On a **router hit**: analysis is skipped entirely; only a DB insert runs.
-On a **router miss + orchestrator hit**: Slither is skipped; the cached
-``ScanResult`` is returned to the router, which persists a fresh DB row.
-On a **double miss**: Slither runs, results are stored in both caches.
+On a **router miss**: Slither runs.
 """
 
 import logging
@@ -44,7 +42,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
-from .cache import analysis_cache
 from .models import Finding as PydanticFinding
 from .models import ScanRequest, ScanResult
 from .rules.base import Finding as RuleFinding
@@ -144,20 +141,7 @@ class AnalysisOrchestrator:
             extra={"file_path": request.file_path, "contract_name": request.contract_name},
         )
 
-        # -- 1. Cache lookup ----------------------------------------------
-        cache_key = analysis_cache.make_key(
-            request.source_code, request.contract_name or ""
-        )
-        cached = analysis_cache.get(cache_key)
-        if cached is not None:
-            logger.info(
-                "Analysis cache hit — returning cached result",
-                extra={
-                    "cache_key": cache_key[:16],
-                    "cache_stats": analysis_cache.stats,
-                },
-            )
-            return cached  # type: ignore[return-value]
+
 
         # -- 2. Write shared temp file ------------------------------------
         tmp_file_path: Optional[str] = None
@@ -233,8 +217,7 @@ class AnalysisOrchestrator:
             timestamp=datetime.now(timezone.utc),
         )
 
-        # -- 8. Store in cache ---------------------------------------------
-        analysis_cache.set(cache_key, result)
+
 
         logger.info(
             "Analysis complete",
@@ -243,7 +226,6 @@ class AnalysisOrchestrator:
                 "total_findings": len(all_findings),
                 "score": overall_score,
                 "summary": summary,
-                "cache_stats": analysis_cache.stats,
             },
         )
         return result

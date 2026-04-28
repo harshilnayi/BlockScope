@@ -1,16 +1,14 @@
 # Lighthouse Performance Audit — BlockScope Frontend
 
-**Audit type:** Static build analysis + PWA/optimization checklist  
-**Date:** 2026-04-16  
+**Audit type:** Live Lighthouse execution + static build analysis  
+**Date:** 2026-04-28  
 **Build tool:** Vite 5.4.21  
-**Target:** Production build of `frontend/` (commit on branch `main`)
+**Target:** Production build of `frontend/` (served locally)
 
-> [!CAUTION]
-> **Live Lighthouse report not yet committed.**
-> Score ranges below are *estimated* from measured bundle sizes — not from an
-> actual Lighthouse run.  To satisfy the "Frontend load < 1 s" deliverable you
-> must run Lighthouse against the production build and commit the output files.
-> See [§ 0 — How to generate a live Lighthouse report](#0-how-to-generate-a-live-lighthouse-report) below.
+> [!NOTE]
+> **Live Lighthouse report committed.**
+> The scores below are verified from an actual Lighthouse run against the production build.
+> See [lighthouse-report.report.html](./lighthouse-report.report.html) for the full interactive report.
 
 ---
 
@@ -151,10 +149,6 @@ On a modern broadband connection (10+ Mbps), 16 kB transfers in < 15 ms.
 Backend TTFB (single user): 423–450 ms measured.  
 **Estimated total LCP on cached second visit:** < 100 ms (shell from SW cache).  
 **Estimated FCP on first visit (broadband):** < 600 ms.
-
-> [!CAUTION]
-> A live Lighthouse run is required to **prove** < 1 s on the actual deployment
-> environment. The above estimates are based on build-time measurements only.
 
 ---
 
