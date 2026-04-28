@@ -1,13 +1,27 @@
 import shutil
 import time
+from pathlib import Path
 
-import psutil
-import redis
-from app.core.config import settings
-from app.core.database import engine
+try:
+    import psutil as _psutil
+    _PSUTIL_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _psutil = None  # type: ignore[assignment]
+    _PSUTIL_AVAILABLE = False
+
+try:
+    import redis as _redis_module
+    _REDIS_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _redis_module = None  # type: ignore[assignment]
+    _REDIS_AVAILABLE = False
+
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from app.core.database import engine
+
+from app.core.config import settings  # type: ignore[no-redef]
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -15,7 +29,6 @@ startup_complete = False
 
 
 # ── CHECKS ────────────────────────────────────────────────────────────────────
-
 
 def check_database():
     try:
@@ -27,15 +40,26 @@ def check_database():
 
 
 def check_redis():
-    if not settings.RATE_LIMIT_ENABLED and not settings.TESTING:
+    if not _REDIS_AVAILABLE:
+        return {"status": "unavailable", "detail": "redis package not installed"}
+
+    # Skip if rate limiting is disabled and we're not in test mode
+    rate_limit_enabled = getattr(settings, "RATE_LIMIT_ENABLED", False)
+    testing = getattr(settings, "TESTING", False)
+    if not rate_limit_enabled and not testing:
         return {"status": "disabled"}
 
     try:
-        r = redis.from_url(
-            settings.redis_url_str,
-            password=settings.REDIS_PASSWORD or None,
-            socket_connect_timeout=settings.REDIS_SOCKET_CONNECT_TIMEOUT,
-            socket_timeout=settings.REDIS_SOCKET_TIMEOUT,
+        redis_url = getattr(settings, "REDIS_URL", None) or getattr(
+            settings, "redis_url_str", "redis://localhost:6379"
+        )
+        redis_password = getattr(settings, "REDIS_PASSWORD", None) or None
+        connect_timeout = getattr(settings, "REDIS_SOCKET_CONNECT_TIMEOUT", 2)
+
+        r = _redis_module.from_url(
+            redis_url,
+            password=redis_password,
+            socket_connect_timeout=connect_timeout,
         )
         r.ping()
         return {"status": "ok"}
@@ -44,27 +68,40 @@ def check_redis():
 
 
 def check_disk():
-    usage = shutil.disk_usage("/")
+    # Use Path(__file__).anchor so the check targets the correct drive root
+    # on Windows (e.g. "C:\\") and non-root Linux deployments, rather than
+    # hard-coding "/" which can give misleading results on multi-drive setups.
+    disk_root = Path(__file__).anchor
+    usage = shutil.disk_usage(disk_root)
     percent_used = round((usage.used / usage.total) * 100, 1)
-    free_gb = round(usage.free / (1024**3), 2)
+    free_gb = round(usage.free / (1024 ** 3), 2)
     status = "ok" if percent_used < 85 else "warning" if percent_used < 95 else "critical"
-    return {"status": status, "percent_used": percent_used, "free_gb": free_gb}
+    return {"status": status, "percent_used": percent_used, "free_gb": free_gb, "path": disk_root}
 
 
 def check_memory():
-    mem = psutil.virtual_memory()
+    if not _PSUTIL_AVAILABLE:
+        return {"status": "unavailable", "detail": "psutil package not installed"}
+    mem = _psutil.virtual_memory()
     percent_used = mem.percent
-    available_mb = round(mem.available / (1024**2), 1)
+    available_mb = round(mem.available / (1024 ** 2), 1)
     status = "ok" if percent_used < 80 else "warning" if percent_used < 95 else "critical"
     return {"status": status, "percent_used": percent_used, "available_mb": available_mb}
 
 
 def check_response_time():
-    """Measure internal API responsiveness with a lightweight operation."""
+    """Measure interpreter responsiveness with a lightweight in-process operation.
+
+    Note: this intentionally benchmarks Python interpreter speed (sum of a
+    small range) rather than making an outbound HTTP call, to avoid circular
+    dependencies and network noise in the health check.  It is a proxy for
+    "is the process severely CPU-starved" rather than end-to-end API latency.
+    For true latency measurement use the /api/v1/performance endpoint.
+    """
     start = time.time()
 
-    # Lightweight CPU-bound work (no external calls)
-    total = sum(range(1000))
+    # Lightweight CPU-bound work (no external calls, no I/O).
+    _ = sum(range(1000))
 
     elapsed_ms = round((time.time() - start) * 1000, 2)
 
@@ -80,7 +117,6 @@ def check_response_time():
 
 # ── ENDPOINTS ─────────────────────────────────────────────────────────────────
 
-
 @router.get("/live")
 def liveness():
     return {"status": "alive"}
@@ -92,7 +128,9 @@ def health():
     redis_status = check_redis()
 
     overall_status = "healthy"
-    redis_required = settings.RATE_LIMIT_ENABLED and not settings.TESTING
+    rate_limit_enabled = getattr(settings, "RATE_LIMIT_ENABLED", False)
+    testing = getattr(settings, "TESTING", False)
+    redis_required = rate_limit_enabled and not testing
     if db["status"] == "error" or (redis_required and redis_status["status"] != "ok"):
         overall_status = "degraded"
 
@@ -120,9 +158,11 @@ def readiness():
         "response_time": response_time,
     }
 
+    rate_limit_enabled = getattr(settings, "RATE_LIMIT_ENABLED", False)
+    testing = getattr(settings, "TESTING", False)
     critical = (
         db["status"] == "error"
-        or (settings.RATE_LIMIT_ENABLED and not settings.TESTING and r["status"] != "ok")
+        or (rate_limit_enabled and not testing and r["status"] != "ok")
         or disk["status"] == "critical"
         or memory["status"] == "critical"
         or response_time["status"] == "critical"

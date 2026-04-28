@@ -15,16 +15,17 @@ Design notes:
     - All public surface is fully type-annotated.
 """
 
+import asyncio
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from analysis import AnalysisOrchestrator
 from analysis import ScanRequest as AnalysisScanRequest
-from analysis.models import Finding as AnalysisFinding
+from analysis.cache import analysis_cache as _analysis_cache
 from analysis.models import ScanResult
-from app.core.config import settings
 from app.core.database import get_by_id, get_db, paginate
 from app.core.logger import PerformanceTimer, log_error_context, logger
 from app.metrics import CACHE_HITS, CACHE_MISSES
@@ -33,11 +34,20 @@ from app.schemas.scan_schema import ScanRequest, ScanResponse
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
-_scan_cache: dict[str, dict[str, Any]] = {}
+from app.core.config import settings
 
-# ──────────────────────────────────────────────
+# Router-level analysis cache.
+# Uses the existing analysis_cache singleton (analysis/cache.py) which provides:
+#   - LRU eviction via OrderedDict
+#   - TTL-based expiry (default 30 min)
+#   - Thread-safety via threading.Lock
+#   - Hit/miss statistics accessible via .stats
+# Every request still inserts its own DB row so each caller gets a unique
+# scan_id; only the expensive Slither analysis is de-duplicated.
+
+# ----------------------------------------------
 # Security modules (optional, graceful fallback)
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 try:
     from app.core.auth import APIKey, get_optional_api_key
     from app.core.rate_limit import rate_limit
@@ -56,11 +66,14 @@ except ImportError:
     def rate_limit(**kwargs: Any):  # type: ignore[misc]
         return lambda func: func
 
-
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Module-level singletons
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 _scan_logger = logging.getLogger("blockscope.scan")
+_SCAN_EXECUTOR = ThreadPoolExecutor(
+    max_workers=max(2, min(os.cpu_count() or 2, 4)),
+    thread_name_prefix="blockscope-scan",
+)
 
 router = APIRouter(tags=["scans"])
 
@@ -72,9 +85,9 @@ if SECURITY_ENABLED:  # pragma: no cover
     _input_sanitizer = InputSanitizer()
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Helper utilities
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 
 def _conditional_rate_limit(**kwargs: Any):
@@ -205,7 +218,7 @@ def _scan_record_to_response(scan: Scan) -> ScanResponse:
     )
 
 
-def _run_analysis_and_persist(
+async def _run_analysis_and_persist(
     source_code: str,
     contract_name: str,
     file_path: str,
@@ -215,8 +228,14 @@ def _run_analysis_and_persist(
     """
     Core pipeline: run analysis → persist to DB → return response.
 
-    This helper is shared by both the JSON and file-upload endpoints
-    to avoid code duplication.
+    This helper is shared by both the JSON and file-upload endpoints.
+
+    The heavy ``orchestrator.analyze()`` call is CPU/IO-bound (Slither
+    invokes the Solidity compiler under the hood).  Running it directly
+    inside an ``async`` endpoint would block FastAPI's event loop and
+    serialise all concurrent requests.  We offload it to a thread-pool
+    worker via :func:`asyncio.to_thread` so the event loop stays free
+    to accept and dispatch other requests while analysis runs.
 
     Args:
         source_code: Solidity source code to analyse.
@@ -235,51 +254,40 @@ def _run_analysis_and_persist(
     is_test_run = os.getenv("TESTING", "").lower() in {"1", "true", "yes"}
     cache_enabled = settings.CACHE_SCAN_RESULTS and not is_test_run
 
-    cache_key = source_code
-    cached_payload = _scan_cache.get(cache_key) if cache_enabled else None
+    # Cache key: SHA-256 of (source_code, contract_name) so two differently-named
+    # contracts with identical source are each cached independently.
+    cache_key = _analysis_cache.make_key(source_code, contract_name)
 
-    if cached_payload is not None:
+    # Try the analysis cache first.
+    # Even on a hit we still persist a fresh DB row so every caller gets
+    # their own scan_id and their own history record.
+    cached_result: Optional[ScanResult] = _analysis_cache.get(cache_key) if cache_enabled else None
+    if cached_result is not None:
         CACHE_HITS.labels(cache_type="scan").inc()
-        _scan_logger.info("Cache hit", extra=ctx)
-        findings_json = [dict(item) for item in cached_payload["findings"]]
-        scan_result = ScanResult(
-            contract_name=contract_name,
-            source_code=source_code,
-            findings=[
-                AnalysisFinding(
-                    title=item["title"],
-                    description=item["description"],
-                    severity=item["severity"],
-                    line_number=item.get("line_number"),
-                    recommendation=item.get("recommendation"),
-                )
-                for item in findings_json
-            ],
-            vulnerabilities_count=cached_payload["vulnerabilities_count"],
-            severity_breakdown=dict(cached_payload["severity_breakdown"]),
-            overall_score=cached_payload["overall_score"],
-            summary=cached_payload["summary"],
-            timestamp=datetime.now(timezone.utc),
-        )
+        _scan_logger.info("Analysis cache hit — skipping Slither, persisting new DB row", extra=ctx)
+        scan_result = cached_result
     else:
+        # Cache miss: count it, then run the full analysis pipeline.
+        CACHE_MISSES.labels(cache_type="scan").inc()
+        # -- Run analysis in a dedicated executor (non-blocking) ---------------
+        # Slither invokes the Solidity compiler in a subprocess; running it
+        # directly here would block FastAPI's event loop and serialise all
+        # concurrent requests.  We offload it to a bounded thread pool so the
+        # loop stays free to accept and dispatch other requests.
         with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
             analysis_request = AnalysisScanRequest(
                 source_code=source_code,
                 contract_name=contract_name,
                 file_path=file_path,
             )
-            scan_result = orchestrator.analyze(analysis_request)
-
-        findings_json = _findings_to_json(scan_result)
-        if cache_enabled:
-            _scan_cache[cache_key] = {
-                "findings": findings_json,
-                "vulnerabilities_count": scan_result.vulnerabilities_count,
-                "severity_breakdown": dict(scan_result.severity_breakdown),
-                "overall_score": scan_result.overall_score,
-                "summary": scan_result.summary,
-            }
-            CACHE_MISSES.labels(cache_type="scan").inc()
+            loop = asyncio.get_running_loop()
+            scan_result = await loop.run_in_executor(
+                _SCAN_EXECUTOR,
+                orchestrator.analyze,
+                analysis_request,
+            )
+        # Populate the analysis cache for future callers.
+        _analysis_cache.set(cache_key, scan_result)
 
     _scan_logger.info(
         "Analysis complete",
@@ -290,9 +298,15 @@ def _run_analysis_and_persist(
         },
     )
 
-    # Persist
+    # -- Always persist a fresh DB row -----------------------------------------
+    # This ensures every caller gets a unique scan_id and their own history
+    # entry, regardless of whether the analysis result came from cache.
     with PerformanceTimer("db_persist_scan", _scan_logger, extra=ctx):
+        findings_json = _findings_to_json(scan_result)
         scan_record = _build_scan_record(scan_result, findings_json)
+        # Overwrite contract_name with the caller-supplied value so the DB
+        # record reflects what *this* caller asked for, not the cached result.
+        scan_record.contract_name = contract_name
         db.add(scan_record)
         db.commit()
         db.refresh(scan_record)
@@ -302,14 +316,12 @@ def _run_analysis_and_persist(
         extra={**ctx, "scan_id": scan_record.id},
     )
 
-    response = _scan_record_to_response(scan_record)
-
-    return response
+    return _scan_record_to_response(scan_record)
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Endpoints
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 
 
 @router.post("/scan", response_model=ScanResponse, summary="Scan contract source code")
@@ -349,7 +361,7 @@ async def scan_contract(
         source_code, contract_name = _sanitize_source(request.source_code, contract_name)
         _validate_source_length(source_code)
 
-        return _run_analysis_and_persist(
+        return await _run_analysis_and_persist(
             source_code=source_code,
             contract_name=contract_name,
             file_path="api_upload",
@@ -442,7 +454,7 @@ async def scan_contract_file(
         contract_name: str = filename.removesuffix(".sol") or "UnnamedContract"
         source_code, contract_name = _sanitize_source(source_code, contract_name)
 
-        return _run_analysis_and_persist(
+        return await _run_analysis_and_persist(
             source_code=source_code,
             contract_name=contract_name,
             file_path=filename,
@@ -581,9 +593,9 @@ async def get_scan(
         ) from exc
 
 
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 # Delete endpoint (only registered when security is available)
-# ──────────────────────────────────────────────
+# ----------------------------------------------
 if SECURITY_ENABLED:  # pragma: no cover
 
     @router.delete("/scans/{scan_id}", summary="Delete a scan (requires API key)")

@@ -129,6 +129,20 @@ class TestApiInfo:
         assert "environment" in data
 
 
+class TestCacheInvalidationEndpoint:
+
+    def test_cache_invalidate_allowed_in_debug(self):
+        with patch.object(sys.modules["app.main"].settings, "DEBUG", True):
+            resp = client.post("/api/v1/cache/invalidate")
+        assert resp.status_code == 200
+        assert "analysis_cache_cleared" in resp.json()
+
+    def test_cache_invalidate_requires_api_key_outside_debug(self):
+        with patch.object(sys.modules["app.main"].settings, "DEBUG", False):
+            resp = client.post("/api/v1/cache/invalidate")
+        assert resp.status_code == 401
+
+
 # ══════════════════════════════════════════════════════════════
 # Debug endpoints (DEBUG=True)
 # ══════════════════════════════════════════════════════════════

@@ -65,7 +65,7 @@ const copyToClipboard = async (text) => {
       await navigator.clipboard.writeText(text);
       return true;
     } catch {
-      // Fall through to the legacy clipboard fallback below.
+      // clipboard API failed — fall through to execCommand
     }
   }
   try {
@@ -798,14 +798,14 @@ const ScanForm = ({
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [currentPage,   setCurrentPage]   = useState('scan');
-  const [findings,      setFindings]      = useState([]);
-  const [contractName,  setContractName]  = useState('');
-  const [contractCode,  setContractCode]  = useState('');
-  const [loading,       setLoading]       = useState(false);
-  const [error,         setError]         = useState('');
-  const [scanHistory,   setScanHistory]   = useState([]);
-  const [runTour,       setRunTour]       = useState(false);
+  const [currentPage, setCurrentPage] = useState('scan');
+  const [findings, setFindings] = useState([]);
+  const [contractName, setContractName] = useState('');
+  const [contractCode, setContractCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [scanHistory, setScanHistory] = useState([]);
+  const [runTour, setRunTour] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
   useEffect(() => {
@@ -871,6 +871,9 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  // Deps array is intentionally empty: scanHistory is only mutated via the
+  // functional updater form (setScanHistory(prev => ...)), so this callback
+  // never needs to re-create when scanHistory changes.
   }, []);
 
   const handleRescan = useCallback(async (scan) => {
