@@ -2,7 +2,7 @@
 
 import pytest
 
-from backend.analysis.rules.base import Finding, Severity, VulnerabilityRule
+from analysis.rules.base import Finding, Severity, VulnerabilityRule
 
 
 def test_finding_creation():

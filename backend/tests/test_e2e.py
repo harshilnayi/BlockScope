@@ -8,11 +8,12 @@ Tests the complete pipeline:
 These tests verify that all components work together correctly.
 """
 
+import pytest
 import subprocess
 import sys
+import json
 from pathlib import Path
-
-import pytest
+from unittest.mock import Mock, patch
 
 # FastAPI testing
 from fastapi.testclient import TestClient
@@ -39,11 +40,11 @@ pragma solidity ^0.8.0;
 
 contract SimpleStorage {
     uint256 public storedData;
-
+    
     function set(uint256 x) public {
         storedData = x;
     }
-
+    
     function get() public view returns (uint256) {
         return storedData;
     }
@@ -60,18 +61,18 @@ pragma solidity ^0.8.0;
 
 contract VulnerableBank {
     mapping(address => uint) public balances;
-
+    
     function deposit() public payable {
         balances[msg.sender] += msg.value;
     }
-
+    
     function withdraw(uint amount) public {
         require(balances[msg.sender] >= amount);
-
+        
         // VULNERABLE: Reentrancy
         (bool success, ) = msg.sender.call{value: amount}("");
         require(success);
-
+        
         balances[msg.sender] -= amount;
     }
 }
@@ -91,8 +92,7 @@ def mock_fastapi_app():
     This simulates what Jiten will build in backend/app/main.py
     """
     from fastapi import FastAPI, HTTPException, status
-
-    from backend.analysis import AnalysisOrchestrator, ScanRequest, ScanResult
+    from analysis import AnalysisOrchestrator, ScanRequest, ScanResult
 
     app = FastAPI(title="BlockScope API - Test")
 
@@ -114,7 +114,8 @@ def mock_fastapi_app():
             return result
         except ValueError as e:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid request: {str(e)}"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid request: {str(e)}",
             )
         except Exception as e:
             raise HTTPException(
@@ -147,19 +148,17 @@ def test_cli_scan_basic(sample_sol_path, tmp_path):
     """
     # Create a temporary test contract
     test_contract = tmp_path / "test.sol"
-    test_contract.write_text(
-        """
+    test_contract.write_text("""
 pragma solidity ^0.8.0;
 
 contract Test {
     uint256 public value;
-
+    
     function setValue(uint256 _value) public {
         value = _value;
     }
 }
-"""
-    )
+""")
 
     print(f"\n🧪 Testing CLI scan on: {test_contract}")
 
@@ -386,7 +385,11 @@ def test_fastapi_scan_endpoint_validation(test_client):
     assert response.status_code == 422, "Should return validation error (422)"
 
     # Test 2: Empty source code
-    empty_request = {"source_code": "", "contract_name": "Empty", "file_path": "/empty.sol"}
+    empty_request = {
+        "source_code": "",
+        "contract_name": "Empty",
+        "file_path": "/empty.sol",
+    }
 
     response = test_client.post("/api/v1/scan", json=empty_request)
 
@@ -501,7 +504,8 @@ def test_all_components_integrated():
     print("\n🧪 Testing component integration")
 
     # Test imports
-    from backend.analysis import AnalysisOrchestrator, ScanRequest, ScanResult
+    from analysis import AnalysisOrchestrator, ScanRequest, ScanResult
+    from analysis.rules.base import VulnerabilityRule
 
     print("   [OK] All imports successful")
 
