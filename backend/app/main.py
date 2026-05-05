@@ -50,6 +50,8 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENABLE_API_DOCS else None,
 )
 
+
+
 app.include_router(health_router)
 
 
@@ -378,8 +380,13 @@ if settings.DEBUG:
                 "security_enabled": False,
                 "message": "Running in basic mode. Enable security features by setting up core modules.",
             }
+@app.get("/health/ready")
+async def health_ready():
+    return {"status": "ok"}
 
-
+@app.get("/")
+async def root():
+    return {"status": "ok"}
 # ===================================
 # MAIN ENTRY POINT
 # ===================================
