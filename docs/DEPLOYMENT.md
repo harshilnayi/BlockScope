@@ -31,7 +31,7 @@ This document covers deploying the BlockScope platform to production using Docke
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/shanaysoni/BlockScope.git
+git clone https://github.com/harshilnayi/BlockScope.git
 cd BlockScope
 
 # 2. Configure environment
@@ -106,7 +106,7 @@ openssl rand -base64 32
 4. **Clone and deploy:**
 
    ```bash
-   git clone https://github.com/shanaysoni/BlockScope.git
+   git clone https://github.com/harshilnayi/BlockScope.git
    cd BlockScope
    cp backend/.env.example backend/.env
    nano backend/.env      # Set production values
