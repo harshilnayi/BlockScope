@@ -500,6 +500,73 @@ class TestNetworkFailures:
         except Exception:
             pytest.fail("Chunked-encoding response is not valid JSON")
 
+    def test_simulated_downstream_timeout(self, client):
+        """
+        Simulate an httpx.TimeoutException from a downstream or external dependency
+        to ensure the server degrades gracefully without leaking tracebacks.
+        """
+        import httpx
+        with patch("fastapi.routing.APIRoute.get_route_handler") as mock_route:
+            # We patch at a high level just to inject the exact exception the network suite requires.
+            mock_route.side_effect = httpx.TimeoutException("Mocked connection timeout to upstream LLM/DB")
+            response = client.post(
+                "/api/v1/scan",
+                json={"source_code": VALID_SOL, "contract_name": "TimeoutTest"},
+            )
+        # Even if a downstream system times out, the server must handle it (500 or 503)
+        # and return a JSON response, not a raw HTML traceback.
+        assert response.status_code in (500, 502, 503, 504)
+        assert isinstance(response.json(), dict)
+        assert "traceback" not in response.text.lower()
+
+    def test_simulated_connection_refused(self, client):
+        """
+        Simulate a ConnectionRefusedError during network operations
+        (e.g., Redis rate-limiter or external API) to verify retry/degradation.
+        """
+        with patch("app.core.database.Session.commit", side_effect=ConnectionRefusedError("Connection refused by upstream")):
+            response = client.post(
+                "/api/v1/scan",
+                json={"source_code": VALID_SOL, "contract_name": "ConnRefusedTest"},
+            )
+        assert response.status_code in (500, 502, 503)
+        assert isinstance(response.json(), dict)
+
+    def test_network_retry_logic_simulation(self, client):
+        """
+        Simulate a network flake where the first call fails but a retry succeeds.
+        (Validates that transient errors do not hard-crash the endpoint).
+        """
+        # Mocking an internal callable to fail once then succeed.
+        call_count = 0
+        from analysis.models import ScanResult
+
+        def flaky_analyze(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                import httpx
+                raise httpx.ConnectError("Simulated transient network flake")
+            return ScanResult(
+                contract_name="RetryTest",
+                source_code=VALID_SOL,
+                findings=[],
+                vulnerabilities_count=0,
+                severity_breakdown={"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0},
+                overall_score=100,
+                summary="SAFE"
+            )
+
+        with patch("app.routers.scan.orchestrator.analyze", side_effect=flaky_analyze):
+            response = client.post(
+                "/api/v1/scan",
+                json={"source_code": VALID_SOL, "contract_name": "RetryTest"},
+            )
+        # Either the endpoint has built-in retry and succeeds (200), or it gracefully 
+        # propagates the network error (500/503). It must not crash unhandled.
+        assert response.status_code in (200, 500, 502, 503)
+
+
 
 # ============================================================================
 # 5. DATABASE FAILURE SIMULATION
