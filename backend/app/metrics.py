@@ -9,6 +9,11 @@ REQUEST_COUNT = Counter(
     ["method", "endpoint", "status"],
 )
 
+ACTIVE_USERS = Gauge(
+    "blockscope_active_users",
+    "Number of active authenticated users",
+)
+
 # Response time
 REQUEST_LATENCY = Histogram(
     "blockscope_request_latency_seconds",
