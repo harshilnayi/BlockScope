@@ -43,7 +43,7 @@ This document defines the disaster recovery (DR) procedures for the BlockScope p
 3. **Clone the repository**
 
    ```bash
-   git clone https://github.com/shanaysoni/BlockScope.git
+   git clone https://github.com/harshilnayi/BlockScope.git
    cd BlockScope
    ```
 

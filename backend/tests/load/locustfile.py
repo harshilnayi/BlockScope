@@ -1,4 +1,3 @@
-from urllib import response
 from locust import HttpUser, task, between
 from pathlib import Path
 

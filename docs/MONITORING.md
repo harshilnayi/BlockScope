@@ -62,7 +62,7 @@ cd backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # 2. In a new terminal, start the monitoring stack
-cd /path/to/isok
+cd /path/to/BlockScope
 docker compose -f docker-compose.monitoring.yml up -d
 ```
 
@@ -189,7 +189,7 @@ The `/metrics` endpoint exposes the following BlockScope-specific metrics:
 | `blockscope_active_requests`              | Gauge     | —                            | Currently in-flight requests         |
 | `blockscope_cache_hits_total`             | Counter   | `cache_type`                 | Total cache hits                     |
 | `blockscope_cache_misses_total`           | Counter   | `cache_type`                 | Total cache misses                   |
-| `blockscope_active_users`                 | Gauge     | —                            | Currently active authenticated users |
+| `blockscope_active_authenticated_requests`                 | Gauge     | —                            | Currently active authenticated users |
 | `blockscope_uptime_seconds`              | Gauge     | —                            | Application uptime in seconds        |
 
 ---
@@ -203,7 +203,7 @@ The pre-built Grafana dashboard includes the following panels:
 | Panel            | Query                                                                                       |
 | ---------------- | ------------------------------------------------------------------------------------------- |
 | Uptime           | `blockscope_uptime_seconds`                                                                 |
-| Active Users     | `blockscope_active_users`                                                                   |
+| Active Authenticated Requests | `blockscope_active_authenticated_requests`                                                                   |
 | Request Rate     | `sum(rate(blockscope_requests_total[1m]))`                                                  |
 | P95 Latency      | `histogram_quantile(0.95, sum(rate(blockscope_request_latency_seconds_bucket[5m])) by (le))` |
 | Cache Hit Rate   | `sum(rate(blockscope_cache_hits_total[1m])) / (sum(rate(…hits…)) + sum(rate(…misses…)))`     |
@@ -280,7 +280,7 @@ sum(rate(blockscope_cache_hits_total[1m]))
 
 ### Active Users
 ```promql
-blockscope_active_users
+blockscope_active_authenticated_requests
 ```
 
 ### Uptime
