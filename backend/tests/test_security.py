@@ -39,55 +39,11 @@ os.environ.setdefault("ADMIN_PASSWORD", "testadmin123")
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(scope="module")
-def test_engine():
-    from sqlalchemy import create_engine
-    engine = create_engine(
-        "sqlite:///./test_security.db",
-        connect_args={"check_same_thread": False},
-    )
-    import app.models  # noqa: ensure all models are registered
-    from app.core.database import Base
-    Base.metadata.create_all(bind=engine)
-    yield engine
-    Base.metadata.drop_all(bind=engine)
-    engine.dispose()
-    db_path = Path("./test_security.db")
-    if db_path.exists():
-        try:
-            db_path.unlink()
-        except PermissionError:
-            pass
-
-
-@pytest.fixture
-def db_session(test_engine):
-    from sqlalchemy.orm import sessionmaker
-    Session = sessionmaker(bind=test_engine, autocommit=False, autoflush=False)
-    session = Session()
-    try:
-        yield session
-    finally:
-        session.rollback()
-        session.close()
-
-
-@pytest.fixture
-def app_instance():
-    from app.main import app as fastapi_app
-    return fastapi_app
-
-
-@pytest.fixture
-def client(app_instance, db_session):
-    from fastapi.testclient import TestClient
-    from app.core.database import get_db
-    app_instance.dependency_overrides[get_db] = lambda: db_session
-    with TestClient(app_instance, raise_server_exceptions=False) as c:
-        yield c
-    app_instance.dependency_overrides.clear()
+# NOTE: test_engine, db_session, app_instance, and client are intentionally
+# NOT re-declared here.  They are provided by backend/tests/conftest.py and
+# inherited automatically.  Duplicating them caused two isolated fixture trees
+# (each with its own SQLite file), wasted resources, and triggered
+# "fixture already defined" warnings (Issue #10 — P2).
 
 
 # Minimal valid Solidity contract
@@ -170,7 +126,14 @@ class TestSQLInjection:
             "/api/v1/scan",
             json={"source_code": sql_in_source, "contract_name": "SQLTest"},
         )
-        assert response.status_code in (200, 400, 422, 429, 500)
+        # Storing SQL-like strings inside Solidity source must succeed or be
+        # rejected for analysis reasons — NOT cause a 500 DB error.
+        # A 500 here strongly suggests the SQL payload was interpreted by the DB,
+        # which is the exact vulnerability this test guards against.
+        assert response.status_code in (200, 400, 422, 429), (
+            f"Unexpected {response.status_code}: SQL payload in source_code field "
+            "must never trigger a server-side DB error."
+        )
         # DB tables should still be accessible after this request
         list_response = client.get("/api/v1/scans")
         assert list_response.status_code in (200, 429)
@@ -374,12 +337,19 @@ class TestAuthenticationBypass:
                 json={"source_code": VALID_SOL, "contract_name": "BypassTest"},
                 headers={"X-API-Key": bad_key},
             )
-            # Must not return a DB auth leak (e.g. 200 with elevated privileges).
-            # 500 is allowed when the background thread pool shuts down between tests.
-            # What is forbidden: the invalid key being accepted as valid (would show as
-            # a 200 with scope that only authenticated users should receive).
-            assert response.status_code in (200, 400, 401, 403, 422, 429, 500), (
-                f"Unexpected status for API key {bad_key!r}: {response.status_code}"
+            # 500 is explicitly excluded: an invalid key must never cause a server
+            # crash.  If the key-validation logic raises an unhandled exception, that
+            # is itself a security defect (info leak + denial of service surface).
+            # Valid outcomes:
+            #   200  — request processed anonymously (key ignored / treated as absent)
+            #   400  — request body invalid
+            #   401  — key format recognised but not accepted
+            #   403  — key rejected by policy
+            #   422  — FastAPI validation error
+            #   429  — rate limit hit
+            assert response.status_code in (200, 400, 401, 403, 422, 429), (
+                f"Invalid API key {bad_key!r} caused status {response.status_code}. "
+                "A 500 means the key-validation logic crashed — potential security defect."
             )
 
     def test_missing_api_key_for_delete_returns_401(self, client, db_session):

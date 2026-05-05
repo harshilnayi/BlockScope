@@ -43,56 +43,11 @@ os.environ.setdefault("ADMIN_PASSWORD", "testadmin123")
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(scope="module")
-def test_engine():
-    from sqlalchemy import create_engine
-    engine = create_engine(
-        "sqlite:///./test_edge_cases.db",
-        connect_args={"check_same_thread": False},
-    )
-    import app.models  # noqa
-    from app.core.database import Base
-    Base.metadata.create_all(bind=engine)
-    yield engine
-    Base.metadata.drop_all(bind=engine)
-    engine.dispose()
-    db_path = Path("./test_edge_cases.db")
-    if db_path.exists():
-        try:
-            db_path.unlink()
-        except PermissionError:
-            pass
-
-
-@pytest.fixture
-def db_session(test_engine):
-    from sqlalchemy.orm import sessionmaker
-    Session = sessionmaker(bind=test_engine, autocommit=False, autoflush=False)
-    session = Session()
-    try:
-        yield session
-    finally:
-        session.rollback()
-        session.close()
-
-
-@pytest.fixture
-def app_instance():
-    from app.main import app as fastapi_app
-    return fastapi_app
-
-
-@pytest.fixture
-def client(app_instance, db_session):
-    from fastapi.testclient import TestClient
-    from app.core.database import get_db
-    app_instance.dependency_overrides[get_db] = lambda: db_session
-    with TestClient(app_instance, raise_server_exceptions=False) as c:
-        yield c
-    app_instance.dependency_overrides.clear()
-
+# NOTE: db_session, app_instance, client, and VALID_SOL are intentionally
+# NOT re-declared here.  They are provided by backend/tests/conftest.py
+# (scope="function") and inherited automatically by pytest.  Duplicating them
+# in this module created two independent fixture trees, causing isolation bugs
+# and "fixture already defined" warnings (Issue #10 — P2).
 
 VALID_SOL = """// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
@@ -105,6 +60,7 @@ contract Safe { uint256 public x; function set(uint256 v) public { x = v; } }
 # ============================================================================
 
 @pytest.mark.slow
+@pytest.mark.edge_case
 class TestLargeFileHandling:
     """Verify the API correctly handles large and oversized payloads."""
 
@@ -191,6 +147,7 @@ class TestLargeFileHandling:
 # 2. MALFORMED INPUTS
 # ============================================================================
 
+@pytest.mark.edge_case
 class TestMalformedInputs:
     """Verify robust handling of malformed, unexpected, and boundary inputs."""
 
@@ -297,13 +254,24 @@ class TestMalformedInputs:
         assert response.status_code in (404, 422)
 
     def test_very_long_contract_name(self, client):
-        """Extremely long contract names must be handled without crashing."""
+        """Extremely long contract names must be rejected or truncated — never crash the server."""
         long_name = "A" * 10_000
         response = client.post(
             "/api/v1/scan",
             json={"source_code": VALID_SOL, "contract_name": long_name},
         )
-        assert response.status_code != 500
+        # A 10 000-char name must be rejected as invalid (400/422) or, if the
+        # application chooses to accept it, must still produce a well-formed
+        # response (200).  A 500 means the server crashed — that is never OK.
+        assert response.status_code in (200, 400, 422, 429), (
+            f"Server returned {response.status_code} for a 10 000-char contract name — "
+            "expected 200 (accepted), 400 (name too long), 422 (validation error), "
+            "or 429 (rate limit). A 500 indicates an unhandled server crash."
+        )
+        # If rejected, the error detail must mention the name constraint — not a stack trace
+        if response.status_code in (400, 422):
+            body = response.text.lower()
+            assert "traceback" not in body, "Validation error must not expose a Python traceback"
 
     def test_control_characters_in_source(self, client):
         """Control characters in source code must not crash the server."""
@@ -333,6 +301,7 @@ class TestMalformedInputs:
 # 3. CONCURRENT REQUESTS
 # ============================================================================
 
+@pytest.mark.edge_case
 class TestConcurrentRequests:
     """Verify thread-safety and correct behaviour under concurrent load."""
 
@@ -422,8 +391,17 @@ class TestConcurrentRequests:
             t.join(timeout=30)
 
         all_statuses = results["reads"] + results["writes"]
+        assert len(all_statuses) == 6, "All 6 threads must complete without hanging"
         for s in all_statuses:
-            assert s != 500 or True  # 500s allowed if analysis fails, not DB corruption
+            # 500 is tolerated only when the background analysis thread-pool is
+            # shut down between TestClient lifetimes (a test-infra artefact).
+            # What is explicitly NOT tolerated: a DB corruption scenario where a
+            # write produces a 200 but returns stale/wrong data, or a read
+            # returns 500 due to a locking deadlock.
+            assert s in (200, 400, 422, 429, 500), (
+                f"Concurrent mixed read/write returned unexpected status {s}. "
+                "This may indicate a DB-level deadlock or unhandled exception."
+            )
 
     def test_concurrent_file_uploads(self, client):
         """Concurrent file upload requests must not corrupt each other's data."""
@@ -455,6 +433,7 @@ class TestConcurrentRequests:
 # 4. NETWORK FAILURE SIMULATION
 # ============================================================================
 
+@pytest.mark.edge_case
 class TestNetworkFailures:
     """Simulate network-related failure modes and verify graceful degradation."""
 
@@ -462,6 +441,10 @@ class TestNetworkFailures:
         """Health check must succeed when everything is healthy."""
         response = client.get("/health")
         assert response.status_code in (200, 503)
+        # Body must be valid JSON with a status field — not a raw error page
+        data = response.json()
+        assert isinstance(data, dict), "Health response must be a JSON object"
+        assert "status" in data, "Health response must contain a 'status' field"
 
     def test_malformed_content_type_header(self, client):
         """Malformed Content-Type must be handled gracefully."""
@@ -485,6 +468,10 @@ class TestNetworkFailures:
         """Unsupported HTTP methods on known endpoints must return 405."""
         response = client.request("PATCH", "/api/v1/scan")
         assert response.status_code in (405, 404, 422)
+        # Must not expose internal details
+        assert "traceback" not in response.text.lower(), (
+            "405 response must not contain a Python traceback"
+        )
 
     def test_request_with_empty_body(self, client):
         """POST with empty body must not cause a 500."""
@@ -496,19 +483,29 @@ class TestNetworkFailures:
         assert response.status_code in (400, 422)
 
     def test_chunked_transfer_encoding(self, client):
-        """Large chunked upload must be handled correctly."""
-        # Simulate by sending a valid request; TestClient handles this natively
+        """Chunked upload must be handled correctly without leaking internals."""
+        # TestClient wraps the request in chunked transfer automatically for
+        # streaming bodies. Sending a normal JSON payload exercises this path.
         response = client.post(
             "/api/v1/scan",
             json={"source_code": VALID_SOL, "contract_name": "ChunkedTest"},
         )
         assert response.status_code in (200, 400, 422, 429, 500)
+        # Regardless of status, the response must be parseable JSON
+        try:
+            data = response.json()
+            assert isinstance(data, (dict, list)), (
+                "Chunked-encoding response must decode to a JSON object or array"
+            )
+        except Exception:
+            pytest.fail("Chunked-encoding response is not valid JSON")
 
 
 # ============================================================================
 # 5. DATABASE FAILURE SIMULATION
 # ============================================================================
 
+@pytest.mark.edge_case
 class TestDatabaseFailures:
     """Simulate database errors and verify the API degrades gracefully."""
 
@@ -618,6 +615,7 @@ class TestDatabaseFailures:
 # 6. BOUNDARY VALUE & PAGINATION EDGE CASES
 # ============================================================================
 
+@pytest.mark.edge_case
 class TestBoundaryValues:
     """Verify exact boundary conditions for all numeric/size parameters."""
 
@@ -670,6 +668,7 @@ class TestBoundaryValues:
 # 7. CACHE RESILIENCE EDGE CASES
 # ============================================================================
 
+@pytest.mark.edge_case
 class TestCacheEdgeCases:
     """Verify cache interactions under edge-case scenarios."""
 
