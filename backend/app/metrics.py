@@ -1,6 +1,11 @@
 """BlockScope Prometheus metrics definitions."""
 
+import time
+
 from prometheus_client import Counter, Gauge, Histogram
+
+START_TIME = time.time()
+
 
 # Total requests
 REQUEST_COUNT = Counter(
@@ -39,6 +44,11 @@ CACHE_MISSES = Counter(
     "Total cache misses",
     ["cache_type"],
 )
+
+APP_UPTIME = Gauge(
+      "app_uptime_seconds",
+      "Application uptime in seconds",
+  )
 
 # Renamed: was ACTIVE_USERS, now correctly reflects authenticated requests
 active_authenticated_requests = Gauge(
