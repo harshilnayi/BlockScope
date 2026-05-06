@@ -13,7 +13,7 @@ import pytest
 
 os.environ.setdefault("ENVIRONMENT", "testing")
 os.environ.setdefault("TESTING", "True")
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_scan_extra.db")
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production-use-only")
 os.environ.setdefault("JWT_SECRET_KEY", "test-jwt-secret-key-not-for-production-use-only")
 os.environ.setdefault("LOG_FILE_ENABLED", "False")
@@ -33,7 +33,7 @@ from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 _engine = create_engine(
-    "sqlite:///./test_scan_extra.db",
+    "sqlite:///:memory:",
     connect_args={"check_same_thread": False},
 )
 Base.metadata.create_all(bind=_engine)

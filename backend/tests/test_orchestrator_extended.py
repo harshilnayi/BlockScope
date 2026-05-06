@@ -6,10 +6,11 @@ and repr.
 
 import os
 import sys
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from typing import List, Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -45,6 +46,32 @@ def _finding(title="Issue", severity="high", line=10, desc="description") -> Pyd
 
 def _request(source="contract A {}", contract_name="A") -> ScanRequest:
     return ScanRequest(source_code=source, contract_name=contract_name, file_path="A.sol")
+
+
+def _run_slither_pass(orc: AnalysisOrchestrator, request: ScanRequest) -> List[PydanticFinding]:
+    tmp_file_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".sol", delete=False, encoding="utf-8"
+        ) as tmp_file:
+            tmp_file.write(request.source_code)
+            tmp_file_path = tmp_file.name
+        return orc._run_slither_analysis_from_file(tmp_file_path)
+    finally:
+        _remove_temp_file(tmp_file_path)
+
+
+def _run_rule_pass(orc: AnalysisOrchestrator, request: ScanRequest) -> List[PydanticFinding]:
+    tmp_file_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".sol", delete=False, encoding="utf-8"
+        ) as tmp_file:
+            tmp_file.write(request.source_code)
+            tmp_file_path = tmp_file.name
+        return orc._run_rule_analysis_from_file(tmp_file_path, request)
+    finally:
+        _remove_temp_file(tmp_file_path)
 
 
 class _AlwaysFindsRule(VulnerabilityRule):
@@ -129,13 +156,13 @@ class TestSlitherIntegration:
 
     def test_slither_unavailable_returns_no_findings(self):
         orc = AnalysisOrchestrator(rules=[])
-        with patch.object(orc.slither_wrapper, "available", False):
+        with patch.object(type(orc.slither_wrapper), "available", new_callable=PropertyMock, return_value=False):
             result = orc.analyze(_request())
         assert result.vulnerabilities_count == 0
 
     def test_slither_available_but_parse_fails_gracefully(self):
         orc = AnalysisOrchestrator(rules=[])
-        with patch.object(orc.slither_wrapper, "available", True), \
+        with patch.object(type(orc.slither_wrapper), "available", new_callable=PropertyMock, return_value=True), \
              patch.object(orc.slither_wrapper, "parse_contract", side_effect=RuntimeError("no sol")):
             result = orc.analyze(_request())
         assert isinstance(result, ScanResult)
@@ -152,9 +179,9 @@ class TestSlitherIntegration:
                 "elements": [{"source_mapping": {"lines": [10]}}],
             }
         ]
-        with patch.object(orc.slither_wrapper, "available", True), \
+        with patch.object(type(orc.slither_wrapper), "available", new_callable=PropertyMock, return_value=True), \
              patch.object(orc.slither_wrapper, "parse_contract", return_value=mock_slither):
-            slither_findings = orc._run_slither_analysis(_request())
+            slither_findings = _run_slither_pass(orc, _request())
         assert len(slither_findings) >= 1
         assert slither_findings[0].severity in ("critical", "high", "medium", "low")
 
@@ -170,18 +197,18 @@ class TestSlitherIntegration:
                 "elements": [],
             }
         ]
-        with patch.object(orc.slither_wrapper, "available", True), \
+        with patch.object(type(orc.slither_wrapper), "available", new_callable=PropertyMock, return_value=True), \
              patch.object(orc.slither_wrapper, "parse_contract", return_value=mock_slither):
-            findings = orc._run_slither_analysis(_request())
+            findings = _run_slither_pass(orc, _request())
         assert len(findings) == 1
         assert findings[0].line_number is None
 
     def test_slither_result_without_detectors_results_attr(self):
         orc = AnalysisOrchestrator(rules=[])
         mock_slither = MagicMock(spec=[])  # no attributes
-        with patch.object(orc.slither_wrapper, "available", True), \
+        with patch.object(type(orc.slither_wrapper), "available", new_callable=PropertyMock, return_value=True), \
              patch.object(orc.slither_wrapper, "parse_contract", return_value=mock_slither):
-            findings = orc._run_slither_analysis(_request())
+            findings = _run_slither_pass(orc, _request())
         assert findings == []
 
 
@@ -193,31 +220,31 @@ class TestRuleAnalysis:
 
     def test_no_rules_returns_empty(self):
         orc = AnalysisOrchestrator(rules=[])
-        findings = orc._run_rule_analysis(_request())
+        findings = _run_rule_pass(orc, _request())
         assert findings == []
 
     def test_rule_with_available_slither_returns_findings(self):
         orc = AnalysisOrchestrator(rules=[_AlwaysFindsRule()])
         mock_slither_obj = MagicMock()
-        with patch.object(orc.slither_wrapper, "available", True), \
+        with patch.object(type(orc.slither_wrapper), "available", new_callable=PropertyMock, return_value=True), \
              patch.object(orc.slither_wrapper, "parse_contract", return_value=mock_slither_obj), \
              patch.object(orc.slither_wrapper, "get_ast_nodes", return_value=MagicMock()):
-            findings = orc._run_rule_analysis(_request())
+            findings = _run_rule_pass(orc, _request())
         assert len(findings) == 1
 
     def test_crashing_rule_skipped_gracefully(self):
         orc = AnalysisOrchestrator(rules=[_CrashingRule()])
         mock_slither_obj = MagicMock()
-        with patch.object(orc.slither_wrapper, "available", True), \
+        with patch.object(type(orc.slither_wrapper), "available", new_callable=PropertyMock, return_value=True), \
              patch.object(orc.slither_wrapper, "parse_contract", return_value=mock_slither_obj), \
              patch.object(orc.slither_wrapper, "get_ast_nodes", return_value=MagicMock()):
-            findings = orc._run_rule_analysis(_request())
+            findings = _run_rule_pass(orc, _request())
         assert findings == []
 
     def test_rule_analysis_slither_unavailable_skips_rules(self):
         orc = AnalysisOrchestrator(rules=[_AlwaysFindsRule()])
-        with patch.object(orc.slither_wrapper, "available", False):
-            findings = orc._run_rule_analysis(_request())
+        with patch.object(type(orc.slither_wrapper), "available", new_callable=PropertyMock, return_value=False):
+            findings = _run_rule_pass(orc, _request())
         assert findings == []
 
 
@@ -354,11 +381,19 @@ class TestRemoveTempFile:
     def test_missing_file_is_safe(self):
         _remove_temp_file("/nonexistent/path/file.sol")
 
-    def test_removes_existing_file(self, tmp_path):
-        f = tmp_path / "test.sol"
-        f.write_text("contract A {}")
-        _remove_temp_file(str(f))
-        assert not f.exists()
+    def test_removes_existing_file(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".sol",
+            delete=False,
+            dir=Path(__file__).resolve().parent,
+            encoding="utf-8",
+        ) as tmp_file:
+            tmp_file.write("contract A {}")
+            tmp_path = Path(tmp_file.name)
+
+        _remove_temp_file(str(tmp_path))
+        assert not tmp_path.exists()
 
 
 # ══════════════════════════════════════════════════════════════

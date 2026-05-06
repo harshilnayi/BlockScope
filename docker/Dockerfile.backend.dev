@@ -17,6 +17,11 @@ COPY backend/requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+# Install pinned Solidity compiler for native Slither analysis
+COPY scripts/setup_solc.py /tmp/setup_solc.py
+RUN python /tmp/setup_solc.py 0.8.20 && \
+    solc --version
+
 # Copy backend code (will be overridden by volume mount in dev)
 COPY backend/ /app/
 

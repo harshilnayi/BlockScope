@@ -17,7 +17,7 @@ RUN pip install --upgrade pip && \
 # ---------- Stage 2: Runtime ----------
 FROM python:3.11-slim
 
-LABEL org.opencontainers.image.source="https://github.com/shanaysoni/BlockScope"
+LABEL org.opencontainers.image.source="https://github.com/harshilnayi/BlockScope"
 LABEL org.opencontainers.image.description="BlockScope Backend API"
 
 WORKDIR /app
@@ -30,15 +30,21 @@ RUN apt-get update && \
 # Copy installed Python packages from builder
 COPY --from=builder /install /usr/local
 
+# Copy compiler bootstrap helper
+COPY scripts/setup_solc.py /tmp/setup_solc.py
+
 # Copy backend code
 COPY backend/ /app/
 
 # Security: create non-root user and set permissions
 RUN useradd -m -r appuser && \
     mkdir -p /app/logs /app/uploads && \
-    chown -R appuser:appuser /app
+    chown -R appuser:appuser /app /tmp/setup_solc.py
 
 USER appuser
+
+RUN python /tmp/setup_solc.py 0.8.20 && \
+    solc --version
 
 EXPOSE 8000
 

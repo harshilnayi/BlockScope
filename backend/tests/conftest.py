@@ -264,3 +264,4 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "integration: Integration tests (needs DB/Redis)")
     config.addinivalue_line("markers", "slow: Slow tests (Slither analysis, etc.)")
     config.addinivalue_line("markers", "security: Security-related tests")
+    config.addinivalue_line("markers", "edge_case: Edge-case and boundary-value tests")

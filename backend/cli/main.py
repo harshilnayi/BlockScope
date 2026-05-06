@@ -35,7 +35,7 @@ def scan(contract_file, output, contract_name):
     try:
         # 1. Load source code from file
         file_path = Path(contract_file)
-        source_code = file_path.read_text()
+        source_code = file_path.read_text(encoding="utf-8-sig")
 
         # 2. Detect contract name if not provided
         if not contract_name:
@@ -66,7 +66,7 @@ def scan(contract_file, output, contract_name):
 
         else:  # text output
             click.secho(f"\n{'='*60}", fg="cyan")
-            click.secho(f"📋 CONTRACT: {result.contract_name}", fg="cyan", bold=True)
+            click.secho(f"CONTRACT: {result.contract_name}", fg="cyan", bold=True)
             click.secho(f"{'='*60}\n", fg="cyan")
 
             click.secho(
