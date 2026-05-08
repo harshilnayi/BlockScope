@@ -6,7 +6,7 @@ This tutorial walks you through BlockScope, a full-stack smart contract vulnerab
 
 **▶️ Watch the Tutorial →** [BlockScope Demo Video](https://drive.google.com/file/d/14nlZZgs0lqmPzqBZ3F2Vnh7kh3JhO127/view?usp=sharing)
 
-> **Note:** For long-term reliability, consider re-uploading this video to YouTube or a dedicated hosting platform.
+> **Note:** This video is currently hosted on Google Drive. For long-term reliability, it will be migrated to YouTube. If the link breaks, please open an issue on the repository.
 
 ---
 
@@ -25,7 +25,7 @@ Before watching or following along, make sure you have:
 - Frontend available at `http://localhost:5173`
 - Backend available at `http://localhost:8000`
 
-> For non-Docker setup, you'll also need Python 3.11 and Node.js 20+. See [`README.md`](../README.md) for details.
+> For non-Docker setup, you'll also need Python 3.11 and Node.js 20+. See [`README.md`](README.md) for details.
 
 ---
 
@@ -41,8 +41,6 @@ Before watching or following along, make sure you have:
 | 4:05      | Scan History         | Viewing and filtering previous scans                |
 | 4:36      | Summary              | Recap and next steps                                |
 
-> ⚠️ *Timestamps are approximate — update these once the final video duration is confirmed.*
-
 ---
 
 ## Key Features Demonstrated
@@ -55,7 +53,7 @@ BlockScope runs two layers of analysis on every scan:
 ### 📊 Security Scoring
 Every scan produces:
 - An **overall security score** from `0` to `100`
-- A **severity breakdown** across findings (e.g. high, medium, low, informational)
+- A **severity breakdown** across findings (e.g., high, medium, low, informational)
 - A full findings list with descriptions and line references where available
 
 ### 🖥️ Developer-Friendly UI
