@@ -1,5 +1,7 @@
 # BlockScope — Production Deployment Guide
 
+**Live Deployment:** https://blockscope-hrww.onrender.com/
+
 This document covers deploying the BlockScope platform to production using Docker, with instructions for DigitalOcean, Render, and generic VPS environments.
 
 ---
