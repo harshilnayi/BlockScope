@@ -28,7 +28,6 @@ from app.metrics import (
     ACTIVE_REQUESTS,
     CACHE_HITS,
     CACHE_MISSES,
-    ACTIVE_USERS,
     APP_UPTIME,
     START_TIME,
 )
@@ -356,7 +355,7 @@ async def log_requests(request: Request, call_next):
     # Track authenticated users via API key header
     api_key = request.headers.get("X-API-Key")
     if api_key:
-        ACTIVE_USERS.inc()
+        active_authenticated_requests.inc()
 
     response = await call_next(request)
 
@@ -385,7 +384,7 @@ async def log_requests(request: Request, call_next):
     ACTIVE_REQUESTS.dec()
 
     if api_key:
-        ACTIVE_USERS.dec()
+        active_authenticated_requests.dec()
 
     return response
 

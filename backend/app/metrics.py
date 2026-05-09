@@ -34,11 +34,6 @@ CACHE_MISSES = Counter(
     ["cache_type"]
 )
 
-# active users (authenticated sessions)
-ACTIVE_USERS = Gauge(
-    "blockscope_active_users",
-    "Currently active authenticated users"
-)
 
 # uptime
 START_TIME = time.time()
