@@ -1,5 +1,7 @@
 # BlockScope — Architecture Documentation
+
 > Production-grade smart contract vulnerability scanner with ML-powered detection
+
 ---
 
 ## Table of Contents
@@ -33,63 +35,67 @@ BlockScope is a full-stack security analysis platform that scans Solidity smart 
 
 ## High-Level Architecture
 
-    graph TB
-        subgraph Client
-            Browser["React SPA<br/>(Vite + TailwindCSS)"]
-        end
+```mermaid
+graph TB
+    subgraph Client
+        Browser["React SPA<br/>(Vite + TailwindCSS)"]
+    end
 
-        subgraph "Reverse Proxy"
-            Nginx["Nginx<br/>Port 80"]
-        end
+    subgraph "Reverse Proxy"
+        Nginx["Nginx<br/>Port 80"]
+    end
 
-        subgraph "Application Layer"
-            Backend["FastAPI Backend<br/>Port 8000"]
-        end
+    subgraph "Application Layer"
+        Backend["FastAPI Backend<br/>Port 8000"]
+    end
 
-        subgraph "Analysis Engine"
-            Orchestrator["AnalysisOrchestrator"]
-            Slither["Slither Wrapper"]
-            Rules["Custom Vulnerability Rules"]
-        end
+    subgraph "Analysis Engine"
+        Orchestrator["AnalysisOrchestrator"]
+        Slither["Slither Wrapper"]
+        Rules["Custom Vulnerability Rules"]
+    end
 
-        subgraph "Data Layer"
-            Postgres["PostgreSQL 15<br/>(Scans, Findings, API Keys)"]
-            Redis["Redis 7<br/>(Rate Limiting, Caching)"]
-        end
+    subgraph "Data Layer"
+        Postgres["PostgreSQL 15<br/>(Scans, Findings, API Keys)"]
+        Redis["Redis 7<br/>(Rate Limiting, Caching)"]
+    end
 
-        Browser -->|"HTTP"| Nginx
-        Nginx -->|"/ (frontend)"| Browser
-        Nginx -->|"/api/* (proxy)"| Backend
-        Backend --> Orchestrator
-        Orchestrator --> Slither
-        Orchestrator --> Rules
-        Backend --> Postgres
-        Backend --> Redis
+    Browser -->|"HTTP"| Nginx
+    Nginx -->|"/ (frontend)"| Browser
+    Nginx -->|"/api/* (proxy)"| Backend
+    Backend --> Orchestrator
+    Orchestrator --> Slither
+    Orchestrator --> Rules
+    Backend --> Postgres
+    Backend --> Redis
+```
 
 ### Request Flow
 
-    sequenceDiagram
-        participant Client
-        participant Nginx
-        participant Middleware
-        participant Router
-        participant Orchestrator
-        participant DB
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Nginx
+    participant Middleware
+    participant Router
+    participant Orchestrator
+    participant DB
 
-        Client->>Nginx: POST /api/v1/scan
-        Nginx->>Middleware: Proxy to backend:8000
-        Middleware->>Middleware: Security Headers
-        Middleware->>Middleware: CORS Validation
-        Middleware->>Middleware: Rate Limit Check (Redis)
-        Middleware->>Router: scan_contract()
-        Router->>Router: Input Sanitization
-        Router->>Orchestrator: analyze(ScanRequest)
-        Orchestrator->>Orchestrator: Run Slither Analysis
-        Orchestrator->>Orchestrator: Run Custom Rules
-        Orchestrator->>Orchestrator: Deduplicate & Score
-        Orchestrator-->>Router: ScanResult
-        Router->>DB: Store Scan + Findings
-        Router-->>Client: JSON Response
+    Client->>Nginx: POST /api/v1/scan
+    Nginx->>Middleware: Proxy to backend:8000
+    Middleware->>Middleware: Security Headers
+    Middleware->>Middleware: CORS Validation
+    Middleware->>Middleware: Rate Limit Check (Redis)
+    Middleware->>Router: scan_contract()
+    Router->>Router: Input Sanitization
+    Router->>Orchestrator: analyze(ScanRequest)
+    Orchestrator->>Orchestrator: Run Slither Analysis
+    Orchestrator->>Orchestrator: Run Custom Rules
+    Orchestrator->>Orchestrator: Deduplicate & Score
+    Orchestrator-->>Router: ScanResult
+    Router->>DB: Store Scan + Findings
+    Router-->>Client: JSON Response
+```
 
 ---
 
@@ -97,22 +103,20 @@ BlockScope is a full-stack security analysis platform that scans Solidity smart 
 
 | Layer          | Technology                   | Version       | Purpose                    |
 |----------------|------------------------------|---------------|----------------------------|
-| **Frontend**   | React                        | 18            | UI Components              |
-| **Build Tool** | Vite                         | 5             | Dev server & bundling      |
-| **Styling**    | TailwindCSS                  | 3             | Utility-first CSS          |
-| **Backend**    | FastAPI                      | 0.110+        | Async REST API             |
+| **Frontend**   | React                        | —             | UI Components              |
+| **Build Tool** | Vite                         | —             | Dev server & bundling      |
+| **Styling**    | TailwindCSS                  | —             | Utility-first CSS          |
+| **Backend**    | FastAPI                      | —             | Async REST API             |
 | **Runtime**    | Python                       | 3.11          | Backend runtime            |
-| **ORM**        | SQLAlchemy                   | 2.x           | Database abstraction       |
-| **Validation** | Pydantic + Pydantic Settings | v2            | Schema validation & config |
+| **ORM**        | SQLAlchemy                   | —             | Database abstraction       |
+| **Validation** | Pydantic + Pydantic Settings | —             | Schema validation & config |
 | **Database**   | PostgreSQL                   | 15            | Primary data store         |
 | **Cache**      | Redis                        | 7             | Rate limiting & caching    |
-| **Analysis**   | Slither                      | latest        | Solidity static analysis   |
+| **Analysis**   | Slither                      | —             | Solidity static analysis   |
 | **Proxy**      | Nginx                        | stable-alpine | Reverse proxy              |
-| **Containers** | Docker + Docker Compose      | 20.10+ / v2+  | Orchestration              |
+| **Containers** | Docker + Docker Compose      | —             | Orchestration              |
 | **CI/CD**      | GitHub Actions               | —             | Automated pipelines        |
 | **Node.js**    | Node                         | 20            | Frontend build             |
-
-> See `backend/requirements.txt` and `frontend/package.json` for exact pinned versions.
 
 ---
 
@@ -120,33 +124,35 @@ BlockScope is a full-stack security analysis platform that scans Solidity smart 
 
 ### Directory Structure
 
-    backend/
-    ├── app/
-    │   ├── main.py              # FastAPI application entry point
-    │   ├── core/
-    │   │   ├── config.py         # Pydantic Settings (all env vars)
-    │   │   ├── database.py       # SQLAlchemy engine + session factory
-    │   │   ├── auth.py           # API key authentication system
-    │   │   ├── security.py       # Security middleware & validators
-    │   │   ├── rate_limit.py     # Redis sliding-window rate limiter
-    │   │   └── logger.py         # Structured logging
-    │   ├── routers/
-    │   │   └── scan.py           # Scan API endpoints
-    │   ├── models/
-    │   │   ├── scan.py           # SQLAlchemy Scan + Finding models
-    │   │   └── finding.py        # Normalized Finding model
-    │   └── schemas/
-    │       └── scan_schema.py    # Pydantic request/response schemas
-    ├── analysis/
-    │   ├── orchestrator.py       # Analysis pipeline coordinator
-    │   ├── scanner.py            # Rule-based scanner
-    │   ├── slither_wrapper.py    # Slither integration
-    │   ├── models.py             # Analysis Pydantic models
-    │   └── rules/
-    │       └── base.py           # VulnerabilityRule base class + Finding dataclass
-    ├── alembic/                  # Database migrations
-    ├── tests/                    # Pytest test suite
-    └── requirements.txt          # Python dependencies
+```
+backend/
+├── app/
+│   ├── main.py              # FastAPI application entry point
+│   ├── core/
+│   │   ├── config.py         # Pydantic Settings (all env vars)
+│   │   ├── database.py       # SQLAlchemy engine + session factory
+│   │   ├── auth.py           # API key authentication system
+│   │   ├── security.py       # Security middleware & validators
+│   │   ├── rate_limit.py     # Redis sliding-window rate limiter
+│   │   └── logger.py         # Structured logging
+│   ├── routers/
+│   │   └── scan.py           # Scan API endpoints
+│   ├── models/
+│   │   ├── scan.py           # SQLAlchemy Scan + Finding models
+│   │   └── finding.py        # Normalized Finding model
+│   └── schemas/
+│       └── scan_schema.py    # Pydantic request/response schemas
+├── analysis/
+│   ├── orchestrator.py       # Analysis pipeline coordinator
+│   ├── scanner.py            # Rule-based scanner
+│   ├── slither_wrapper.py    # Slither integration
+│   ├── models.py             # Analysis Pydantic models
+│   └── rules/
+│       └── base.py           # VulnerabilityRule base class + Finding dataclass
+├── alembic/                  # Database migrations
+├── tests/                    # Pytest test suite
+└── requirements.txt          # Python dependencies
+```
 
 ### Application Bootstrap (`main.py`)
 
@@ -180,18 +186,20 @@ The `AnalysisOrchestrator` is the core of BlockScope's scanning capability.
 
 ### Pipeline Flow
 
-    graph LR
-        A["ScanRequest<br/>(source_code, contract_name)"] --> B["AnalysisOrchestrator.analyze()"]
-        B --> C["1. Slither Analysis"]
-        B --> D["2. Custom Rule Analysis"]
-        C --> E["Convert Slither Findings"]
-        D --> F["Convert Rule Findings"]
-        E --> G["Merge & Deduplicate"]
-        F --> G
-        G --> H["Calculate Severity Breakdown"]
-        H --> I["Calculate Security Score"]
-        I --> J["Generate Summary"]
-        J --> K["ScanResult"]
+```mermaid
+graph LR
+    A["ScanRequest<br/>(source_code, contract_name)"] --> B["AnalysisOrchestrator.analyze()"]
+    B --> C["1. Slither Analysis"]
+    B --> D["2. Custom Rule Analysis"]
+    C --> E["Convert Slither Findings"]
+    D --> F["Convert Rule Findings"]
+    E --> G["Merge & Deduplicate"]
+    F --> G
+    G --> H["Calculate Severity Breakdown"]
+    H --> I["Calculate Security Score"]
+    I --> J["Generate Summary"]
+    J --> K["ScanResult"]
+```
 
 ### Components
 
@@ -208,8 +216,10 @@ The `AnalysisOrchestrator` is the core of BlockScope's scanning capability.
 
 The orchestrator calculates a **security score from 0 to 100**:
 
-    score = 100 - (10 × critical) - (5 × high) - (2 × medium) - (1 × low)
-    score = max(0, score)  # Floor at 0
+```
+score = 100 - (10 × critical) - (5 × high) - (2 × medium) - (1 × low)
+score = max(0, score)  # Floor at 0
+```
 
 ### Deduplication Strategy
 
@@ -224,51 +234,53 @@ When the same issue is found by both Slither and custom rules:
 
 ### Database Models (SQLAlchemy)
 
-    erDiagram
-        SCANS {
-            int id PK
-            string contract_name
-            text source_code
-            string status
-            int vulnerabilities_count
-            json severity_breakdown
-            int overall_score
-            text summary
-            json findings
-            datetime scanned_at
-            datetime created_at
-            datetime updated_at
-        }
+```mermaid
+erDiagram
+    SCANS {
+        int id PK
+        string contract_name
+        text source_code
+        string status
+        int vulnerabilities_count
+        json severity_breakdown
+        int overall_score
+        text summary
+        json findings
+        datetime scanned_at
+        datetime created_at
+        datetime updated_at
+    }
 
-        FINDINGS {
-            int id PK
-            int scan_id FK
-            string title
-            string severity
-            text description
-            int line_number
-            text code_snippet
-            text recommendation
-        }
+    FINDINGS {
+        int id PK
+        int scan_id FK
+        string title
+        string severity
+        text description
+        int line_number
+        text code_snippet
+        text recommendation
+    }
 
-        API_KEYS {
-            int id PK
-            string key_hash
-            string key_prefix
-            string name
-            string description
-            string tier
-            bool is_active
-            bool is_revoked
-            datetime created_at
-            datetime expires_at
-            int request_count
-            datetime last_used_at
-            string allowed_ips
-            string allowed_domains
-        }
+    API_KEYS {
+        int id PK
+        string key_hash
+        string key_prefix
+        string name
+        string description
+        string tier
+        bool is_active
+        bool is_revoked
+        datetime created_at
+        datetime expires_at
+        int request_count
+        datetime last_used_at
+        string allowed_ips
+        string allowed_domains
+    }
 
-        SCANS ||--o{ FINDINGS : "has many"
+    SCANS ||--o{ FINDINGS : "has many"
+```
 
 ### Analysis Models (Pydantic)
 
@@ -286,27 +298,29 @@ When the same issue is found by both Slither and custom rules:
 
 ### Layered Security Model
 
-    graph TB
-        subgraph "Layer 1: Transport"
-            A["Nginx TLS Termination"]
-        end
-        subgraph "Layer 2: Headers"
-            B["SecurityHeadersMiddleware<br/>CSP, HSTS, X-Frame-Options,<br/>X-Content-Type-Options"]
-        end
-        subgraph "Layer 3: CORS"
-            C["CORSMiddleware<br/>Origin allowlist"]
-        end
-        subgraph "Layer 4: Rate Limiting"
-            D["RateLimitMiddleware<br/>Redis sliding window"]
-        end
-        subgraph "Layer 5: Authentication"
-            E["API Key Validation<br/>SHA256 hash comparison"]
-        end
-        subgraph "Layer 6: Input Validation"
-            F["InputSanitizer + FileValidator<br/>XSS, SQL injection, file type"]
-        end
+```mermaid
+graph TB
+    subgraph "Layer 1: Transport"
+        A["Nginx TLS Termination"]
+    end
+    subgraph "Layer 2: Headers"
+        B["SecurityHeadersMiddleware<br/>CSP, HSTS, X-Frame-Options,<br/>X-Content-Type-Options"]
+    end
+    subgraph "Layer 3: CORS"
+        C["CORSMiddleware<br/>Origin allowlist"]
+    end
+    subgraph "Layer 4: Rate Limiting"
+        D["RateLimitMiddleware<br/>Redis sliding window"]
+    end
+    subgraph "Layer 5: Authentication"
+        E["API Key Validation<br/>SHA256 hash comparison"]
+    end
+    subgraph "Layer 6: Input Validation"
+        F["InputSanitizer + FileValidator<br/>XSS, SQL injection, file type"]
+    end
 
-        A --> B --> C --> D --> E --> F
+    A --> B --> C --> D --> E --> F
+```
 
 ### API Key Authentication
 
@@ -341,20 +355,22 @@ When the same issue is found by both Slither and custom rules:
 
 ### Structure
 
-    frontend/
-    ├── src/
-    │   ├── App.jsx              # Main application component
-    │   ├── main.jsx             # React entry point
-    │   ├── apiClient.js         # Axios HTTP client
-    │   ├── utils.js             # Utility functions
-    │   ├── ErrorBoundary.jsx    # React error boundary
-    │   ├── components/          # Reusable UI components
-    │   ├── App.css              # Component styles
-    │   └── index.css            # Global styles
-    ├── index.html               # HTML entry point
-    ├── vite.config.js           # Vite configuration
-    ├── tailwind.config.js       # TailwindCSS configuration
-    └── package.json             # Node dependencies
+```
+frontend/
+├── src/
+│   ├── App.jsx              # Main application component
+│   ├── main.jsx             # React entry point
+│   ├── apiClient.js         # Axios HTTP client
+│   ├── utils.js             # Utility functions
+│   ├── ErrorBoundary.jsx    # React error boundary
+│   ├── components/          # Reusable UI components
+│   ├── App.css              # Component styles
+│   └── index.css            # Global styles
+├── index.html               # HTML entry point
+├── vite.config.js           # Vite configuration
+├── tailwind.config.js       # TailwindCSS configuration
+└── package.json             # Node dependencies
+```
 
 - **Framework**: React (JSX)
 - **Build tool**: Vite with HMR for development
