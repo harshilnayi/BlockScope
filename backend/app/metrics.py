@@ -42,3 +42,9 @@ APP_UPTIME = Gauge(
     "blockscope_uptime_seconds",
     "Application uptime in seconds"
 )
+
+# Active authenticated requests
+active_authenticated_requests = Gauge(
+    "blockscope_active_authenticated_requests",
+    "Currently active authenticated (API-key bearing) requests",
+)

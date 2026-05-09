@@ -26,6 +26,7 @@ from app.metrics import (
     REQUEST_COUNT,
     REQUEST_LATENCY,
     ACTIVE_REQUESTS,
+    active_authenticated_requests,
     CACHE_HITS,
     CACHE_MISSES,
     APP_UPTIME,
