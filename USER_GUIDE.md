@@ -7,7 +7,7 @@ BlockScope is a production-ready smart contract vulnerability scanner built usin
 - FastAPI (Backend)
 - React (Frontend)
 - PostgreSQL (Database)
-- Redis (Cache / Rate limiting)
+- Redis (Cache / Rate Limiting)
 - Nginx (Reverse Proxy)
 - Docker Compose (Deployment)
 
@@ -23,17 +23,17 @@ Install:
 
 Verify:
 
-docker --version  
-docker compose version  
+    docker --version
+    docker compose version
 
 ---
 
 ## Installation
 
-Clone repository:
+Clone the repository:
 
-git clone https://github.com/harshilnayi/BlockScope.git  
-cd BlockScope  
+    git clone https://github.com/harshilnayi/BlockScope.git
+    cd BlockScope
 
 ---
 
@@ -43,14 +43,14 @@ Production requires a backend environment file.
 
 Create it:
 
-cp backend/backend.env.production.example backend/.env  
+    cp backend/.env.example backend/.env
 
-Edit backend/.env and set:
+Edit `backend/.env` and set:
 
-POSTGRES_PASSWORD=your_password  
-REDIS_PASSWORD=your_password  
+    POSTGRES_PASSWORD=your_password
+    REDIS_PASSWORD=your_password
 
-⚠ Never commit backend/.env
+> ⚠ Never commit `backend/.env`
 
 ---
 
@@ -58,15 +58,15 @@ REDIS_PASSWORD=your_password
 
 Start the application:
 
-cd scripts  
-./deploy.sh  
+    cd scripts
+    ./deploy.sh
 
 This will:
 
 - Build backend and frontend
 - Start PostgreSQL and Redis
 - Start Nginx
-- Start API server
+- Start the API server
 
 ---
 
@@ -74,9 +74,9 @@ This will:
 
 Open:
 
-http://localhost  
+    http://localhost
 
-Frontend is served through Nginx.
+The frontend is served through Nginx.
 
 ---
 
@@ -84,74 +84,71 @@ Frontend is served through Nginx.
 
 ### Scan Smart Contract
 
-POST  
-http://localhost/api/v1/scan  
+    POST http://localhost/api/v1/scan
 
 Example:
 
-curl -X POST http://localhost/api/v1/scan \
--H "Content-Type: application/json" \
--d '{
-  "source_code": "contract Test {}",
-  "contract_name": "Test"
-}'
+    curl -X POST http://localhost/api/v1/scan \
+      -H "Content-Type: application/json" \
+      -d '{
+        "source_code": "contract Test {}",
+        "contract_name": "Test"
+      }'
 
 ---
 
 ### Health Check
 
-GET  
-http://localhost/health  
+    GET http://localhost/health
 
 Returns:
 
-{
-  "status": "healthy",
-  "version": "0.1.0",
-  "app": "BlockScope API"
-}
+    {
+      "status": "healthy",
+      "version": "1.0.0",
+      "app": "BlockScope API"
+    }
 
 ---
 
 ### API Info
 
-GET  
-http://localhost/api/v1/info  
+    GET http://localhost/api/v1/info
 
 ---
 
 ## Backup Database
 
-cd scripts  
-./backup.sh  
+    cd scripts
+    ./backup.sh
 
 Creates file:
 
-backup-YYYY-MM-DD-HH-MM.sql.gz  
+    backup-YYYY-MM-DD-HH-MM.sql.gz
 
 ---
 
 ## Restore Database
 
-cd scripts  
-./rollback.sh backup-file.sql.gz  
+    cd scripts
+    ./rollback.sh backup-file.sql.gz
 
 ---
 
 ## View Running Services
 
-docker compose -f docker/docker-compose.prod.yml ps  
+    docker compose -f docker/docker-compose.prod.yml ps
 
 View backend logs:
 
-docker logs blockscope-backend  
+    docker logs blockscope-backend
 
 ---
 
 ## Stop Application
 
-cd docker  
-docker compose -f docker-compose.prod.yml down  
+    cd docker
+    docker compose -f docker-compose.prod.yml down
 
 ---
 
@@ -159,19 +156,19 @@ docker compose -f docker-compose.prod.yml down
 
 ### Containers not starting
 
-docker compose -f docker/docker-compose.prod.yml logs  
+    docker compose -f docker/docker-compose.prod.yml logs
 
 ### Health check failing
 
 Visit:
 
-http://localhost/health  
+    http://localhost/health
 
 ---
 
 ## Security Notes
 
-- Never commit backend/.env
+- Never commit `backend/.env`
 - Always set strong passwords
 - Only Nginx exposes port 80
 - Backend and database are internal only

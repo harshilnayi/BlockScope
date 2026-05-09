@@ -429,7 +429,19 @@ async def scan_contract_file(
     )
 
     try:
-        # Validate via security module if available
+        # ── Baseline validation (always runs, even without security modules) ──
+        # BUG-002 fix: reject empty files before any further processing.
+        # BUG-003 fix: enforce .sol extension even when SECURITY_ENABLED=False.
+        ext = os.path.splitext(filename)[-1].lower()
+        if ext != ".sol":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Invalid file type '{ext}'. Only .sol (Solidity) files are accepted."
+                ),
+            )
+
+        # Validate via security module if available (adds MIME, size, content checks)
         if SECURITY_ENABLED:
             is_valid, error_message = await _file_validator.validate_file(file)
             if not is_valid:
@@ -437,6 +449,14 @@ async def scan_contract_file(
 
         # Read and decode file content
         raw_bytes: bytes = await file.read()
+
+        # BUG-002 fix (second layer): catch empty files even when file.size is unavailable.
+        if not raw_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail="File is empty. Please upload a valid Solidity contract.",
+            )
+
         try:
             source_code: str = raw_bytes.decode("utf-8")
         except UnicodeDecodeError as exc:

@@ -37,14 +37,14 @@ contract SimpleContract {
     try:
         with open(file_path, "rb") as f:
             response = client.post(
-                "/api/v1/scan", files={"file": ("test.sol", f, "application/octet-stream")}
+                "/api/v1/scan/file", files={"file": ("test.sol", f, "application/octet-stream")}
             )
         assert response.status_code == 200
         data = response.json()
         assert "contract_name" in data
-        assert "vulnerabilities" in data  # Can be empty list if no vulnerabilities
-        assert isinstance(data["vulnerabilities"], list)
-        assert "scan_timestamp" in data
+        assert "findings" in data  # Can be empty list if no vulnerabilities
+        assert isinstance(data["findings"], list)
+        assert "timestamp" in data
     finally:
         os.unlink(file_path)
 
@@ -68,7 +68,7 @@ def test_invalid_file_type(extension, content):
     try:
         with open(file_path, "rb") as f:
             response = client.post(
-                "/api/v1/scan", files={"file": (f"test{extension}", f, "application/octet-stream")}
+                "/api/v1/scan/file", files={"file": (f"test{extension}", f, "application/octet-stream")}
             )
         assert response.status_code in [400, 422]
 
@@ -85,17 +85,17 @@ def test_empty_file():
     try:
         with open(file_path, "rb") as f:
             response = client.post(
-                "/api/v1/scan", files={"file": ("empty.sol", f, "application/octet-stream")}
+                "/api/v1/scan/file", files={"file": ("empty.sol", f, "application/octet-stream")}
             )
         # Either 400 or 200 with "no code found" - adjust based on your implementation
         assert response.status_code in [200, 400]
         data = response.json()
         if response.status_code == 200:
             assert "contract_name" in data
-            assert "vulnerabilities" in data
-            assert "scan_timestamp" in data
+            assert "findings" in data
+            assert "timestamp" in data
             # Check for indication of no code
-            assert len(data["vulnerabilities"]) == 0 or "no code found" in str(data).lower()
+            assert len(data["findings"]) == 0 or "no code found" in str(data).lower()
         else:
             assert "detail" in data
             assert "empty" in data["detail"].lower() or "no code" in data["detail"].lower()
@@ -119,16 +119,16 @@ contract BrokenContract {
     try:
         with open(file_path, "rb") as f:
             response = client.post(
-                "/api/v1/scan", files={"file": ("broken.sol", f, "application/octet-stream")}
+                "/api/v1/scan/file", files={"file": ("broken.sol", f, "application/octet-stream")}
             )
         # Should handle gracefully without crashing
         assert response.status_code in [200, 400]
         data = response.json()
         if response.status_code == 200:
             assert "contract_name" in data
-            assert "vulnerabilities" in data
-            assert "scan_timestamp" in data
-            # May include parsing errors in vulnerabilities
+            assert "findings" in data
+            assert "timestamp" in data
+            # May include parsing errors in findings
         else:
             assert "detail" in data
             assert "syntax" in data["detail"].lower() or "error" in data["detail"].lower()
@@ -148,15 +148,15 @@ def test_large_file():
         assert file_size > 2 * 1024 * 1024  # >10MB
         with open(file_path, "rb") as f:
             response = client.post(
-                "/api/v1/scan", files={"file": ("large.sol", f, "application/octet-stream")}
+                "/api/v1/scan/file", files={"file": ("large.sol", f, "application/octet-stream")}
             )
         # Either processes or rejects - adjust based on your design
         assert response.status_code in [200, 400, 413]  # 413 for payload too large
         if response.status_code == 200:
             data = response.json()
             assert "contract_name" in data
-            assert "vulnerabilities" in data
-            assert "scan_timestamp" in data
+            assert "findings" in data
+            assert "timestamp" in data
         elif response.status_code == 413:
             data = response.json()
             assert "detail" in data

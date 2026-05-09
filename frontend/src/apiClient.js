@@ -17,7 +17,6 @@ export const apiClient = {
           body: JSON.stringify({
             source_code: sourceCode,
             contract_name: contractName || 'UnnamedContract',
-            file_path: 'api_upload',
           }),
           signal: controller.signal,
         });

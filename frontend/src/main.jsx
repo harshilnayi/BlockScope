@@ -54,7 +54,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 // Only import in production to keep dev bundle small.
 // web-vitals is optional — the app works perfectly without it.
 if (import.meta.env.PROD) {
-  import('web-vitals').then(({ onCLS, onFID, onFCP, onLCP, onTTFB }) => {
+  import('web-vitals').then(({ onCLS, onINP, onFCP, onLCP, onTTFB }) => {
     const send = (metric) => {
       if (import.meta.env.VITE_ANALYTICS_URL) {
         fetch(import.meta.env.VITE_ANALYTICS_URL, {
@@ -69,7 +69,7 @@ if (import.meta.env.PROD) {
       }
     };
     onCLS(send);
-    onFID(send);
+    onINP(send);
     onFCP(send);
     onLCP(send);
     onTTFB(send);

@@ -2,7 +2,7 @@
 
 ## Duration: 6–8 Minutes
 
-Audience: New contributors  
+Audience: New contributors
 Goal: Get development environment running successfully
 
 ---
@@ -12,7 +12,6 @@ Goal: Get development environment running successfully
 **On Screen: Repository homepage**
 
 **Script:**
-
 > Welcome to the BlockScope developer onboarding guide.
 >
 > In this video, I'll show you how to:
@@ -31,26 +30,19 @@ Goal: Get development environment running successfully
 
 **On Screen: Terminal**
 
-```bash
-git clone <repository-url>
-cd BlockScope
-```
-
-Explain:
+    git clone https://github.com/harshilnayi/BlockScope.git
+    cd BlockScope
 
 Make sure you are on the latest main branch:
 
-```bash
-git checkout main
-git pull origin main
-```
+    git checkout main
+    git pull origin main
 
 ---
 
 ## 3. Option 1 – Docker Setup (Recommended for Quick Start) (1:15 – 3:00)
 
 **Explain:**
-
 > BlockScope includes a production-style Docker setup that runs:
 >
 > - FastAPI backend
@@ -61,44 +53,33 @@ git pull origin main
 
 Start everything:
 
-```bash
-docker compose -f docker/docker-compose.prod.yml up --build
-```
+    docker compose -f docker/docker-compose.prod.yml up --build
 
 Wait for containers to build.
 
 Verify:
 
-```bash
-docker ps
-```
+    docker ps
 
 Open browser:
 
-```
-http://localhost
-```
+    http://localhost
 
 **Explain:**
-
-> The frontend is served through Nginx.  
+> The frontend is served through Nginx.
 > API requests are proxied to the backend container.
 
 Test health:
 
-```
-http://localhost/health
-```
+    http://localhost/health
 
 Expected response:
 
-```json
-{
-  "status": "healthy",
-  "version": "0.1.0",
-  "app": "BlockScope API"
-}
-```
+    {
+      "status": "healthy",
+      "version": "1.0.0",
+      "app": "BlockScope API"
+    }
 
 > If you see this, your Docker setup is working.
 
@@ -107,35 +88,27 @@ Expected response:
 ## 4. Option 2 – Local Backend Development (3:00 – 5:00)
 
 **Explain:**
-
 > For active backend development and debugging, running locally is recommended.
 
 Navigate to backend:
 
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
+    cd backend
+    python3 -m venv venv
+    source venv/bin/activate  # Windows: .\venv\Scripts\activate
+    pip install -r requirements.txt
 
 Make sure PostgreSQL is running locally.
 
 Start backend:
 
-```bash
-uvicorn app.main:app --reload
-```
+    uvicorn app.main:app --reload
 
 Open Swagger:
 
-```
-http://localhost:8000/docs
-```
+    http://localhost:8000/docs
 
 **Explain:**
-
-> Swagger allows you to test endpoints directly.  
+> Swagger allows you to test endpoints directly.
 > The main scan endpoint is:
 >
 > `POST /api/v1/scan`
@@ -146,21 +119,16 @@ http://localhost:8000/docs
 
 Navigate to frontend:
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+    cd frontend
+    npm install
+    npm run dev
 
 Open:
 
-```
-http://localhost:5173
-```
+    http://localhost:5173
 
 **Explain:**
-
-> In development mode, Vite serves the frontend.  
+> In development mode, Vite serves the frontend.
 > Ensure the backend is running before testing scans.
 
 ---
@@ -169,13 +137,10 @@ http://localhost:5173
 
 Navigate to backend:
 
-```bash
-cd backend
-pytest
-```
+    cd backend
+    pytest
 
 **Explain:**
-
 > All tests must pass before opening a pull request.
 
 ---
@@ -184,23 +149,17 @@ pytest
 
 Create a new branch:
 
-```bash
-git checkout -b feat/your-feature-name
-```
+    git checkout -b feat/your-feature-name
 
 Make changes.
 
 Commit using conventional format:
 
-```bash
-git commit -m "feat: add new analysis rule"
-```
+    git commit -m "feat: add new analysis rule"
 
 Push:
 
-```bash
-git push origin feat/your-feature-name
-```
+    git push origin feat/your-feature-name
 
 Open a pull request to `main`.
 
@@ -209,7 +168,6 @@ Open a pull request to `main`.
 ## 8. Closing (7:30 – 8:00)
 
 **Explain:**
-
 > Before submitting your PR:
 >
 > - Ensure Docker still works

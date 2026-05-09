@@ -395,9 +395,10 @@ class AnalysisOrchestrator:
         """
         Merge findings from Slither and rules, removing duplicates.
 
-        Deduplication key: ``(severity, line_number)``.  When two findings
-        share the same key, the one with the longer description is kept
-        (heuristic for richer detail).
+        Deduplication key: ``(severity, title, line_number)``.  Only findings
+        that represent the exact same issue (same check name, same severity, same
+        source line) are merged; when two entries share the key, the one with the
+        longer description is kept (heuristic for richer detail).
 
         Args:
             slither_findings: Findings from Slither static analysis.
@@ -407,10 +408,25 @@ class AnalysisOrchestrator:
             Deduplicated and severity-sorted list of findings
             (critical → high → medium → low → info).
         """
-        unique: Dict[Tuple[str, Optional[int]], PydanticFinding] = {}
+        # BUG-007 fix: the original key was (severity, line_number).  When two
+        # *different* issues share the same severity and line_number=None (e.g. two
+        # Slither informational detectors with no source mapping), they collapsed to
+        # a single entry whose content depended on description-length ordering.
+        # Because as_completed() delivers futures in non-deterministic wall-clock
+        # order, the winner changed between runs — producing an intermittent false
+        # positive or false negative on the same input.
+        #
+        # Fix: include the normalised title in the key so only genuinely duplicate
+        # findings (same issue, same severity, same line) are merged.  Two findings
+        # are only considered duplicates when all three fields match.
+        unique: Dict[Tuple[str, str, Optional[int]], PydanticFinding] = {}
 
         for finding in slither_findings + rule_findings:
-            key: Tuple[str, Optional[int]] = (finding.severity, finding.line_number)
+            key: Tuple[str, str, Optional[int]] = (
+                finding.severity,
+                finding.title.strip().lower(),
+                finding.line_number,
+            )
             existing = unique.get(key)
             if existing is None or len(finding.description) > len(existing.description):
                 unique[key] = finding
@@ -419,6 +435,7 @@ class AnalysisOrchestrator:
             unique.values(),
             key=lambda f: (
                 _SEVERITY_ORDER.get(f.severity, 5),
+                f.title,  # stable secondary sort so output is deterministic
                 f.line_number if f.line_number is not None else 9999,
             ),
         )

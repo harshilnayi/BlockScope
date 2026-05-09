@@ -35,38 +35,38 @@ As of the current repo state:
 ## Main Features
 
 - Dual analysis engine:
-  - Slither static analysis
-  - Custom source-based fallback rules
+  * Slither static analysis
+  * Custom source-based fallback rules
 - Security scoring:
-  - severity breakdown
-  - overall score from `0` to `100`
+  * Severity breakdown
+  * Overall score from `0` to `100`
 - Developer-friendly UI:
-  - upload area
-  - paste-in editor
-  - scan history
-  - result filtering and export helpers
+  * Upload area
+  * Paste-in editor
+  * Scan history
+  * Result filtering and export helpers
 - API surface:
-  - scan by JSON
-  - scan by file upload
-  - list previous scans
-  - fetch a scan by ID
+  * Scan by JSON
+  * Scan by file upload
+  * List previous scans
+  * Fetch a scan by ID
 - Operational support:
-  - health endpoints
-  - Swagger docs
-  - Dockerized dev stack
-  - GitHub Actions CI
+  * Health endpoints
+  * Swagger docs
+  * Dockerized dev stack
+  * GitHub Actions CI
 
 ## Tech Stack
 
-| Layer | Tech |
-|---|---|
-| Frontend | React, Vite, TailwindCSS |
-| Backend | FastAPI, Python 3.11, Uvicorn |
-| Analysis | Slither, custom source rules |
-| Database | PostgreSQL 15 |
-| Cache / Rate Limiting | Redis 7 |
-| Containers | Docker, Docker Compose |
-| Testing | Pytest, Vitest |
+| Layer                 | Tech                          |
+|-----------------------|-------------------------------|
+| Frontend              | React, Vite, TailwindCSS      |
+| Backend               | FastAPI, Python 3.11, Uvicorn |
+| Analysis              | Slither, custom source rules  |
+| Database              | PostgreSQL 15                 |
+| Cache / Rate Limiting | Redis 7                       |
+| Containers            | Docker, Docker Compose        |
+| Testing               | Pytest, Vitest                |
 
 ## Architecture
 
@@ -88,27 +88,25 @@ For more detail, see:
 
 ## Project Structure
 
-```text
-BlockScope/
-├── backend/
-│   ├── app/
-│   │   ├── core/
-│   │   ├── models/
-│   │   ├── routers/
-│   │   └── schemas/
-│   ├── analysis/
-│   ├── cli/
-│   ├── tests/
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   └── package.json
-├── docker/
-├── scripts/
-├── .github/workflows/
-├── docker-compose.yml
-└── README.md
-```
+    BlockScope/
+    ├── backend/
+    │   ├── app/
+    │   │   ├── core/
+    │   │   ├── models/
+    │   │   ├── routers/
+    │   │   └── schemas/
+    │   ├── analysis/
+    │   ├── cli/
+    │   ├── tests/
+    │   └── requirements.txt
+    ├── frontend/
+    │   ├── src/
+    │   └── package.json
+    ├── docker/
+    ├── scripts/
+    ├── .github/workflows/
+    ├── docker-compose.yml
+    └── README.md
 
 ## Prerequisites
 
@@ -127,11 +125,9 @@ For local non-Docker development:
 
 If you just want the project running with the least friction, use Docker.
 
-```bash
-git clone https://github.com/harshilnayi/BlockScope.git
-cd BlockScope
-docker compose up -d --build
-```
+    git clone https://github.com/harshilnayi/BlockScope.git
+    cd BlockScope
+    docker compose up -d --build
 
 Then open:
 
@@ -142,25 +138,17 @@ Then open:
 
 Expected health response:
 
-```json
-{"status":"healthy","version":"1.0.0","database":"ok","redis":"ok"}
-```
+    {"status":"healthy","version":"1.0.0","database":"ok","redis":"ok"}
 
 ## Recommended Run Method
 
 Use Docker Compose from the repo root.
 
-From `E:\BlockScope` on Windows:
-
-```powershell
-docker compose up -d --build
-```
+    docker compose up -d --build
 
 Check container status:
 
-```powershell
-docker compose ps
-```
+    docker compose ps
 
 You should see:
 
@@ -173,98 +161,72 @@ You should see:
 
 ### 1. Start the project
 
-```powershell
-docker compose up -d --build
-```
+    docker compose up -d --build
 
 ### 2. Verify the backend
 
-```powershell
-curl http://localhost:8000/health
-```
+    curl http://localhost:8000/health
 
 Expected:
 
-```json
-{"status":"healthy","version":"1.0.0","database":"ok","redis":"ok"}
-```
+    {"status":"healthy","version":"1.0.0","database":"ok","redis":"ok"}
 
 ### 3. Verify the frontend
 
 Open:
 
-```text
-http://localhost:5173
-```
+    http://localhost:5173
 
 If you still see an older cached UI, do a hard refresh:
 
-```text
-Ctrl + Shift + R
-```
+    Ctrl + Shift + R
 
 ### 4. Verify the API docs
 
 Open:
 
-```text
-http://localhost:8000/docs
-```
+    http://localhost:8000/docs
 
 ### 5. Run a scan
 
 You can use either:
 
-- the frontend UI
+- The frontend UI
 - Swagger docs
-- a direct API request
+- A direct API request
 
 Example API request:
 
-```bash
-curl -X POST http://localhost:8000/api/v1/scan \
-  -H "Content-Type: application/json" \
-  -d "{\"source_code\":\"pragma solidity ^0.8.20; contract Test { function ping() public pure returns (uint256) { return 1; } }\",\"contract_name\":\"Test\"}"
-```
+    curl -X POST http://localhost:8000/api/v1/scan \
+      -H "Content-Type: application/json" \
+      -d "{\"source_code\":\"pragma solidity ^0.8.20; contract Test { function ping() public pure returns (uint256) { return 1; } }\",\"contract_name\":\"Test\"}"
 
-## Docker Commands You’ll Actually Use
+## Docker Commands You'll Actually Use
 
 Start everything:
 
-```powershell
-docker compose up -d --build
-```
+    docker compose up -d --build
 
 See status:
 
-```powershell
-docker compose ps
-```
+    docker compose ps
 
 Watch backend logs:
 
-```powershell
-docker compose logs -f backend
-```
+    docker compose logs -f backend
 
 Watch frontend logs:
 
-```powershell
-docker compose logs -f frontend
-```
+    docker compose logs -f frontend
 
 Stop the project:
 
-```powershell
-docker compose down
-```
+    docker compose down
 
 Reset containers and volumes:
 
-```powershell
-docker compose down -v
-docker compose up -d --build
-```
+    docker compose down -v
+    docker compose up -d --build
 
 ## Local Development Without Docker
 
@@ -272,36 +234,29 @@ This works too, but Docker is the recommended path because it gives you PostgreS
 
 ### Backend
 
-```powershell
-cd E:\BlockScope\backend
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
+    cd backend
+    python -m venv venv
+    source venv/bin/activate  # Windows: .\venv\Scripts\activate
+    pip install -r requirements.txt
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ### Frontend
 
-```powershell
-cd E:\BlockScope\frontend
-npm install
-npm run dev
-```
+    cd frontend
+    npm install
+    npm run dev
 
 ### Compiler setup for native Slither
 
 If you run locally outside Docker and `solc` is missing:
 
-```powershell
-cd E:\BlockScope
-python scripts\setup_solc.py 0.8.20
-```
+    python scripts/setup_solc.py 0.8.20
 
 ## Environment Notes
 
 The repo uses:
 
-- [backend/.env.development](backend/.env.development) for development defaults
+- `backend/.env.development` for development defaults
 - Docker Compose environment overrides for container networking
 
 Important runtime facts:
@@ -330,12 +285,12 @@ See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for full request and response e
 
 BlockScope runs analysis through:
 
-1. input validation
+1. Input validation
 2. Slither parsing and static analysis
-3. custom source-rule detection
-4. finding normalization and deduplication
-5. score calculation
-6. persistence to PostgreSQL
+3. Custom source-rule detection
+4. Finding normalization and deduplication
+5. Score calculation
+6. Persistence to PostgreSQL
 
 The result returned to the user includes:
 
@@ -352,18 +307,18 @@ The result returned to the user includes:
 
 The backend includes:
 
-- security headers
+- Security headers
 - CORS controls
-- request logging
-- file validation
-- optional API-key-based auth
+- Request logging
+- File validation
+- Optional API-key-based auth
 - Redis-backed rate limiting
 
 Current dev behavior:
 
 - API docs are enabled
 - Redis is enabled in the Docker run path
-- rate limiting is active in the running Docker stack
+- Rate limiting is active in the running Docker stack
 
 ## Testing
 
@@ -371,30 +326,22 @@ Current dev behavior:
 
 From repo root:
 
-```powershell
-pytest -q backend
-```
+    pytest -q backend
 
 Or from the backend directory:
 
-```powershell
-cd E:\BlockScope\backend
-pytest -q
-```
+    cd backend
+    pytest -q
 
 ### Frontend tests
 
-```powershell
-cd E:\BlockScope\frontend
-npm test -- --run
-```
+    cd frontend
+    npm test -- --run
 
 ### Frontend production build
 
-```powershell
-cd E:\BlockScope\frontend
-npm run build
-```
+    cd frontend
+    npm run build
 
 ## Troubleshooting
 
@@ -402,28 +349,22 @@ npm run build
 
 Do a hard refresh:
 
-```text
-Ctrl + Shift + R
-```
+    Ctrl + Shift + R
 
 ### `/health` does not show Redis as `ok`
 
 Check:
 
-```powershell
-docker compose ps
-docker compose logs -f backend
-docker compose logs -f redis
-```
+    docker compose ps
+    docker compose logs -f backend
+    docker compose logs -f redis
 
 ### Swagger loads blank
 
 That issue should now be fixed. If it reappears, rebuild:
 
-```powershell
-docker compose down
-docker compose up -d --build
-```
+    docker compose down
+    docker compose up -d --build
 
 ### Docker daemon is not reachable
 
@@ -461,12 +402,12 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for a longer issue guide.
 
 ## Contributing
 
-If you’re contributing:
+If you're contributing:
 
-1. create a branch
-2. make your changes
-3. run tests
-4. open a pull request
+1. Create a branch
+2. Make your changes
+3. Run tests
+4. Open a pull request
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
 

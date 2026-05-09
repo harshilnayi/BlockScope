@@ -2,10 +2,10 @@
 
 ## Supported Versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+| Version | Supported |
+|---------|-----------|
+| 1.0.x   | ✅         |
+| < 1.0   | ❌         |
 
 ## Reporting a Vulnerability
 
@@ -14,7 +14,7 @@ We take the security of BlockScope seriously. If you discover a security vulnera
 ### How to Report
 
 1. **DO NOT** open a public GitHub issue for security vulnerabilities
-2. Email security concerns to: **security@blockscope.io**
+2. Email security concerns to: **<security@blockscope.io>**
 3. Include the following in your report:
    - Description of the vulnerability
    - Steps to reproduce
@@ -35,15 +35,15 @@ We take the security of BlockScope seriously. If you discover a security vulnera
 - **NEVER** commit `.env` files with real credentials
 - Use `.env.example` as a template — copy and fill in actual values
 - Generate secure keys using:
-  ```bash
-  python -c "import secrets; print(secrets.token_urlsafe(64))"
-  ```
+
+      python -c "import secrets; print(secrets.token_urlsafe(64))"
+
 - Rotate secrets regularly, especially after team member departures
 
 ### API Keys
 
 - API keys are hashed (SHA-256) before storage — raw keys are shown only once
-- Keys support tier-based rate limiting (free, pro, enterprise)
+- Keys support tier-based rate limiting (free, basic, premium, enterprise)
 - Revoke compromised keys immediately via the admin API
 - Use IP allowlisting for production API keys when possible
 
@@ -58,13 +58,14 @@ We take the security of BlockScope seriously. If you discover a security vulnera
 - Sliding window rate limiting implemented via Redis
 - Default free tier: 100 requests/hour
 - Rate limit headers included in all responses:
-  - `X-RateLimit-Limit`
-  - `X-RateLimit-Remaining`
-  - `X-RateLimit-Reset`
+  * `X-RateLimit-Limit`
+  * `X-RateLimit-Remaining`
+  * `X-RateLimit-Reset`
 
 ### Security Headers
 
 All responses include OWASP-recommended security headers:
+
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
 - `X-XSS-Protection: 1; mode=block`
@@ -84,29 +85,29 @@ All responses include OWASP-recommended security headers:
 ### Pre-commit Hooks
 
 The following pre-commit hooks are configured:
+
 - `detect-private-key` — blocks commits containing private keys
 - `detect-secrets` — scans for hardcoded secrets and credentials
 - `bandit` — Python security linter
 - `check-added-large-files` — prevents accidental large file commits
 
 To install:
-```bash
-pip install pre-commit
-pre-commit install
-```
+
+    pip install pre-commit
+    pre-commit install
 
 ### Development vs Production
 
-| Setting              | Development          | Production           |
-| -------------------- | -------------------- | -------------------- |
-| DEBUG                | `True`               | `False`              |
-| Rate Limiting        | Disabled             | Enabled (strict)     |
-| CORS                 | Permissive           | Restrictive          |
-| API Docs             | Enabled              | Disabled             |
-| Log Response Bodies  | Yes                  | Never                |
-| SQL Logging          | Enabled              | Disabled             |
-| HTTPS                | Optional             | Required             |
-| Secret Key Length    | 64+ chars            | 64+ chars            |
+| Setting             | Development | Production       |
+|---------------------|-------------|------------------|
+| DEBUG               | `True`      | `False`          |
+| Rate Limiting       | Disabled    | Enabled (strict) |
+| CORS                | Permissive  | Restrictive      |
+| API Docs            | Enabled     | Disabled         |
+| Log Response Bodies | Yes         | Never            |
+| SQL Logging         | Enabled     | Disabled         |
+| HTTPS               | Optional    | Required         |
+| Secret Key Length   | 64+ chars   | 64+ chars        |
 
 ## Dependency Security
 
@@ -118,17 +119,20 @@ pre-commit install
 ## Infrastructure Security
 
 ### Database
+
 - Use strong, unique passwords for all database accounts
 - Enable SSL connections in production
 - Limit database user permissions to only what's needed
 - Enable connection pooling with `pool_pre_ping=True`
 
 ### Redis
+
 - Use password authentication in production
 - Bind to localhost or use SSL for remote connections
 - Set `maxmemory` limits to prevent OOM
 
 ### Docker
+
 - Use non-root users in containers
 - Scan images for vulnerabilities
 - Keep base images updated
@@ -136,6 +140,6 @@ pre-commit install
 
 ## Changelog
 
-| Date       | Change                                      |
-| ---------- | ------------------------------------------- |
+| Date       | Change                                |
+|------------|---------------------------------------|
 | 2026-03-03 | Initial security policy and hardening |

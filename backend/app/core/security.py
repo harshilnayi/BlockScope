@@ -148,8 +148,12 @@ class FileValidator:
         Returns:
             tuple: (is_valid, error_message)
         """
-        # Check size if available
-        if hasattr(file, "size") and file.size:
+        # Check size if available.
+        # BUG-002 fix: use `file.size is not None` instead of `file.size` so that
+        # an empty file (size == 0, which is falsy) is not silently skipped.
+        if hasattr(file, "size") and file.size is not None:
+            if file.size == 0:
+                return False, "File is empty. Please upload a valid Solidity contract."
             if file.size > self.max_size:
                 max_mb = self.max_size / (1024 * 1024)
                 return False, f"File too large (max {max_mb:.1f}MB)"

@@ -22,18 +22,14 @@ The API expects Solidity source code as raw text inside a JSON request.
 
 Send a POST request to:
 
-```
-POST /api/v1/scan
-```
+    POST /api/v1/scan
 
 Example request body:
 
-```json
-{
-  "contract_name": "MyToken",
-  "source_code": "pragma solidity ^0.8.0; contract MyToken { ... }"
-}
-```
+    {
+      "contract_name": "MyToken",
+      "source_code": "pragma solidity ^0.8.0; contract MyToken { ... }"
+    }
 
 The frontend automatically sends requests in this format when you paste contract code.
 
@@ -59,9 +55,7 @@ BlockScope limits contract size to:
 
 If exceeded, the API returns:
 
-```
-HTTP 413 – Contract code too large
-```
+    HTTP 413 – Contract code too large
 
 ---
 
@@ -69,9 +63,7 @@ HTTP 413 – Contract code too large
 
 If `source_code` is empty or only whitespace, the API returns:
 
-```
-HTTP 400 – Contract code cannot be empty
-```
+    HTTP 400 – Contract code cannot be empty
 
 ---
 
@@ -95,15 +87,11 @@ Each scan is stored in PostgreSQL with:
 
 You can use:
 
-```
-GET /api/v1/scans
-```
+    GET /api/v1/scans
 
 Supports pagination:
 
-```
-GET /api/v1/scans?skip=0&limit=10
-```
+    GET /api/v1/scans?skip=0&limit=10
 
 - `skip` = number of records to skip
 - `limit` = number of records to return
@@ -114,15 +102,11 @@ GET /api/v1/scans?skip=0&limit=10
 
 Use:
 
-```
-GET /api/v1/scans/{scan_id}
-```
+    GET /api/v1/scans/{scan_id}
 
 If the scan does not exist:
 
-```
-HTTP 404 – Scan {id} not found
-```
+    HTTP 404 – Scan {id} not found
 
 ---
 
@@ -173,9 +157,7 @@ BlockScope uses:
 
 The database connection is configured using:
 
-```
-DATABASE_URL
-```
+    DATABASE_URL
 
 ---
 
@@ -207,19 +189,15 @@ exist for future expansion.
 
 Use:
 
-```
-GET /health
-```
+    GET /health
 
 Example response:
 
-```json
-{
-  "status": "healthy",
-  "version": "0.1.0"
-  "app": "BlockScope API"
-}
-```
+    {
+      "status": "healthy",
+      "version": "1.0.0",
+      "app": "BlockScope API"
+    }
 
 If the database is disconnected, status may return as `"degraded"`.
 
@@ -247,16 +225,24 @@ Possible reasons:
 
 Correct API prefix:
 
-```
-/api/v1
-```
+    /api/v1
 
 ---
 
 ## 18. Does BlockScope support file uploads?
 
-Currently, the API expects raw source code as text inside JSON.  
-File upload functionality is not implemented yet.
+Yes.  
+You can upload a `.sol` file directly using:
+
+    POST /api/v1/scan/file
+
+Example:
+
+    curl -X POST http://localhost:8000/api/v1/scan/file \
+      -F "file=@MyContract.sol"
+
+The file must have a `.sol` extension and contain valid Solidity source code.  
+See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for the full request/response reference.
 
 ---
 
@@ -272,7 +258,7 @@ Production setup includes:
 - Deployment scripts
 - Health checks
 
-Refer to `USER_GUIDE.md` for production deployment steps.
+Refer to `DEPLOYMENT.md` for production deployment steps.
 
 ---
 
@@ -313,9 +299,7 @@ Settings are loaded using Pydantic BaseSettings.
 Yes.  
 If enabled, documentation is available at:
 
-```
-/docs
-```
+    /docs
 
 This may be disabled in production environments.
 

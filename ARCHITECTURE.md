@@ -24,6 +24,7 @@
 BlockScope is a full-stack security analysis platform that scans Solidity smart contracts for vulnerabilities. It combines **Slither static analysis** with **custom vulnerability detection rules** to produce scored security reports.
 
 **Core capabilities:**
+
 - Upload Solidity source code or `.sol` files via REST API
 - Run automated vulnerability detection (Slither + custom rules)
 - Deduplicate and score findings (0–100 security score)
@@ -100,22 +101,22 @@ sequenceDiagram
 
 ## Technology Stack
 
-| Layer | Technology | Version | Purpose |
-|-------|-----------|---------|---------|
-| **Frontend** | React | — | UI Components |
-| **Build Tool** | Vite | — | Dev server & bundling |
-| **Styling** | TailwindCSS | — | Utility-first CSS |
-| **Backend** | FastAPI | — | Async REST API |
-| **Runtime** | Python | 3.11 | Backend runtime |
-| **ORM** | SQLAlchemy | — | Database abstraction |
-| **Validation** | Pydantic + Pydantic Settings | — | Schema validation & config |
-| **Database** | PostgreSQL | 15 | Primary data store |
-| **Cache** | Redis | 7 | Rate limiting & caching |
-| **Analysis** | Slither | — | Solidity static analysis |
-| **Proxy** | Nginx | stable-alpine | Reverse proxy |
-| **Containers** | Docker + Docker Compose | — | Orchestration |
-| **CI/CD** | GitHub Actions | — | Automated pipelines |
-| **Node.js** | Node | 20 | Frontend build |
+| Layer          | Technology                   | Version       | Purpose                    |
+|----------------|------------------------------|---------------|----------------------------|
+| **Frontend**   | React                        | —             | UI Components              |
+| **Build Tool** | Vite                         | —             | Dev server & bundling      |
+| **Styling**    | TailwindCSS                  | —             | Utility-first CSS          |
+| **Backend**    | FastAPI                      | —             | Async REST API             |
+| **Runtime**    | Python                       | 3.11          | Backend runtime            |
+| **ORM**        | SQLAlchemy                   | —             | Database abstraction       |
+| **Validation** | Pydantic + Pydantic Settings | —             | Schema validation & config |
+| **Database**   | PostgreSQL                   | 15            | Primary data store         |
+| **Cache**      | Redis                        | 7             | Rate limiting & caching    |
+| **Analysis**   | Slither                      | —             | Solidity static analysis   |
+| **Proxy**      | Nginx                        | stable-alpine | Reverse proxy              |
+| **Containers** | Docker + Docker Compose      | —             | Orchestration              |
+| **CI/CD**      | GitHub Actions               | —             | Automated pipelines        |
+| **Node.js**    | Node                         | 20            | Frontend build             |
 
 ---
 
@@ -202,18 +203,18 @@ graph LR
 
 ### Components
 
-| Component | File | Responsibility |
-|-----------|------|---------------|
-| `AnalysisOrchestrator` | `analysis/orchestrator.py` | Coordinates the full pipeline |
-| `SlitherWrapper` | `analysis/slither_wrapper.py` | Wraps Slither binary for contract parsing |
-| `SmartContractScanner` | `analysis/scanner.py` | Runs registered `VulnerabilityRule` instances |
-| `VulnerabilityRule` | `analysis/rules/base.py` | Abstract base class for custom detection rules |
-| `Finding` (dataclass) | `analysis/rules/base.py` | Rule-level finding with `rule_id`, `severity`, `confidence` |
-| `Finding` (Pydantic) | `analysis/models.py` | API-level finding with `title`, `recommendation` |
+| Component              | File                          | Responsibility                                              |
+|------------------------|-------------------------------|-------------------------------------------------------------|
+| `AnalysisOrchestrator` | `analysis/orchestrator.py`    | Coordinates the full pipeline                               |
+| `SlitherWrapper`       | `analysis/slither_wrapper.py` | Wraps Slither binary for contract parsing                   |
+| `SmartContractScanner` | `analysis/scanner.py`         | Runs registered `VulnerabilityRule` instances               |
+| `VulnerabilityRule`    | `analysis/rules/base.py`      | Abstract base class for custom detection rules              |
+| `Finding` (dataclass)  | `analysis/rules/base.py`      | Rule-level finding with `rule_id`, `severity`, `confidence` |
+| `Finding` (Pydantic)   | `analysis/models.py`          | API-level finding with `title`, `recommendation`            |
 
 ### Security Scoring Algorithm
 
-The orchestrator calculates a **security score from 0–100**:
+The orchestrator calculates a **security score from 0 to 100**:
 
 ```
 score = 100 - (10 × critical) - (5 × high) - (2 × medium) - (1 × low)
@@ -223,6 +224,7 @@ score = max(0, score)  # Floor at 0
 ### Deduplication Strategy
 
 When the same issue is found by both Slither and custom rules:
+
 - Match on **same severity + same line number**
 - Keep the finding with the **longer description** (more detail)
 
@@ -282,13 +284,13 @@ erDiagram
 
 ### Analysis Models (Pydantic)
 
-| Model | Module | Purpose |
-|-------|--------|---------|
-| `ScanRequest` | `analysis/models.py` | Input: `source_code`, `contract_name`, `file_path` |
-| `ScanResult` | `analysis/models.py` | Output: findings, score, severity breakdown, summary |
-| `Finding` | `analysis/models.py` | Individual vulnerability with recommendation |
-| `ScanRequest` | `app/schemas/scan_schema.py` | API request: `source_code`, `contract_name` |
-| `ScanResponse` | `app/schemas/scan_schema.py` | API response: `scan_id`, score, findings, timestamp |
+| Model          | Module                       | Purpose                                              |
+|----------------|------------------------------|------------------------------------------------------|
+| `ScanRequest`  | `analysis/models.py`         | Input: `source_code`, `contract_name`, `file_path`   |
+| `ScanResult`   | `analysis/models.py`         | Output: findings, score, severity breakdown, summary |
+| `Finding`      | `analysis/models.py`         | Individual vulnerability with recommendation         |
+| `ScanRequest`  | `app/schemas/scan_schema.py` | API request: `source_code`, `contract_name`          |
+| `ScanResponse` | `app/schemas/scan_schema.py` | API response: `scan_id`, score, findings, timestamp  |
 
 ---
 
@@ -339,13 +341,13 @@ graph TB
 
 ### Input Validation
 
-| Validator | Protects Against |
-|-----------|-----------------|
-| `InputSanitizer.sanitize_string()` | Script injection, null bytes, control characters |
-| `InputSanitizer.sanitize_html()` | XSS via HTML tags |
-| `InputSanitizer.sanitize_filename()` | Path traversal (`../`) |
-| `FileValidator.validate_file()` | Malicious uploads (size, extension, MIME, content) |
-| `SQLValidator.is_safe_order_by()` | SQL injection in ORDER BY |
+| Validator                            | Protects Against                                   |
+|--------------------------------------|----------------------------------------------------|
+| `InputSanitizer.sanitize_string()`   | Script injection, null bytes, control characters   |
+| `InputSanitizer.sanitize_html()`     | XSS via HTML tags                                  |
+| `InputSanitizer.sanitize_filename()` | Path traversal (`../`)                             |
+| `FileValidator.validate_file()`      | Malicious uploads (size, extension, MIME, content) |
+| `SQLValidator.is_safe_order_by()`    | SQL injection in ORDER BY                          |
 
 ---
 
@@ -383,33 +385,33 @@ frontend/
 
 ### Docker Architecture
 
-| Dockerfile | Base Image | Purpose | Features |
-|-----------|-----------|---------|----------|
-| `Dockerfile.backend.dev` | `python:3.11-slim` | Dev backend | Hot-reload with `--reload` |
-| `Dockerfile.backend.prod` | `python:3.11-slim` (multi-stage) | Prod backend | Non-root user, 4 workers |
-| `Dockerfile.frontend.dev` | `node:20-alpine` | Dev frontend | Vite HMR |
-| `Dockerfile.frontend.prod` | `node:20-alpine` → `nginx:stable-alpine` (multi-stage) | Prod frontend | Static files via Nginx |
+| Dockerfile                 | Base Image                                             | Purpose       | Features                   |
+|----------------------------|--------------------------------------------------------|---------------|----------------------------|
+| `Dockerfile.backend.dev`   | `python:3.11-slim`                                     | Dev backend   | Hot-reload with `--reload` |
+| `Dockerfile.backend.prod`  | `python:3.11-slim` (multi-stage)                       | Prod backend  | Non-root user, 4 workers   |
+| `Dockerfile.frontend.dev`  | `node:20-alpine`                                       | Dev frontend  | Vite HMR                   |
+| `Dockerfile.frontend.prod` | `node:20-alpine` → `nginx:stable-alpine` (multi-stage) | Prod frontend | Static files via Nginx     |
 
 ### Container Topology
 
 **Development** (`docker-compose.yml`):
 
-| Service | Container | Port | Notes |
-|---------|-----------|------|-------|
-| `db` | `blockscope_db` | 5432 | PostgreSQL 15 Alpine |
-| `redis` | `blockscope_redis` | 6379 | Redis 7 Alpine with AOF |
-| `backend` | `blockscope_backend` | 8000 | Hot-reload, volume-mounted |
-| `frontend` | `blockscope_frontend` | 5173 | Vite HMR, volume-mounted |
+| Service    | Container             | Port | Notes                      |
+|------------|-----------------------|------|----------------------------|
+| `db`       | `blockscope_db`       | 5432 | PostgreSQL 15 Alpine       |
+| `redis`    | `blockscope_redis`    | 6379 | Redis 7 Alpine with AOF    |
+| `backend`  | `blockscope_backend`  | 8000 | Hot-reload, volume-mounted |
+| `frontend` | `blockscope_frontend` | 5173 | Vite HMR, volume-mounted   |
 
 **Production** (`docker/docker-compose.prod.yml`):
 
-| Service | Container | Resource Limits | Resource Reservations |
-|---------|-----------|----------------|----------------------|
-| `backend` | `blockscope-backend` | 1 CPU, 1 GB | 0.5 CPU, 512 MB |
-| `frontend` | `blockscope-frontend` | 0.5 CPU, 512 MB | 0.25 CPU, 256 MB |
-| `postgres` | `blockscope-postgres` | 1 CPU, 1 GB | 0.5 CPU, 512 MB |
-| `redis` | `blockscope-redis` | 0.5 CPU, 512 MB | 0.25 CPU, 256 MB |
-| `nginx` | `blockscope-nginx` | 0.5 CPU, 256 MB | 0.25 CPU, 128 MB |
+| Service    | Container             | Resource Limits | Resource Reservations |
+|------------|-----------------------|-----------------|-----------------------|
+| `backend`  | `blockscope-backend`  | 1 CPU, 1 GB     | 0.5 CPU, 512 MB       |
+| `frontend` | `blockscope-frontend` | 0.5 CPU, 512 MB | 0.25 CPU, 256 MB      |
+| `postgres` | `blockscope-postgres` | 1 CPU, 1 GB     | 0.5 CPU, 512 MB       |
+| `redis`    | `blockscope-redis`    | 0.5 CPU, 512 MB | 0.25 CPU, 256 MB      |
+| `nginx`    | `blockscope-nginx`    | 0.5 CPU, 256 MB | 0.25 CPU, 128 MB      |
 
 ### Nginx Configuration
 
@@ -418,12 +420,12 @@ frontend/
 
 ### Operations Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `scripts/deploy.sh` | Stop → Build → Start production containers |
-| `scripts/rollback.sh` | Restore database from backup file, restart services |
-| `scripts/backup.sh` | PostgreSQL `pg_dump` to compressed `.sql.gz` |
-| `scripts/health-check.sh` | Verify backend and frontend are responding |
+| Script                    | Purpose                                             |
+|---------------------------|-----------------------------------------------------|
+| `scripts/deploy.sh`       | Stop → Build → Start production containers          |
+| `scripts/rollback.sh`     | Restore database from backup file, restart services |
+| `scripts/backup.sh`       | PostgreSQL `pg_dump` to compressed `.sql.gz`        |
+| `scripts/health-check.sh` | Verify backend and frontend are responding          |
 
 ---
 
@@ -431,14 +433,15 @@ frontend/
 
 Four GitHub Actions workflows automate quality and deployment:
 
-| Workflow | Trigger | Jobs |
-|----------|---------|------|
-| **Backend CI** | Push/PR to `main`, `develop` (backend paths) | Lint (Flake8 + Bandit) → Test (Python 3.10, 3.11) with Postgres + Redis → Coverage upload |
-| **Frontend CI** | Push/PR to `main`, `develop` (frontend paths) | ESLint → Vitest with coverage → Production build |
-| **Docker Build** | Push/PR to `main` (docker/backend/frontend paths) | Build & push backend + frontend images to GHCR |
-| **Deploy Staging** | Push to `main` or manual dispatch | Build images → Deploy to staging → Health check |
+| Workflow           | Trigger                                           | Jobs                                                                                      |
+|--------------------|---------------------------------------------------|-------------------------------------------------------------------------------------------|
+| **Backend CI**     | Push/PR to `main`, `develop` (backend paths)      | Lint (Flake8 + Bandit) → Test (Python 3.10, 3.11) with Postgres + Redis → Coverage upload |
+| **Frontend CI**    | Push/PR to `main`, `develop` (frontend paths)     | ESLint → Vitest with coverage → Production build                                          |
+| **Docker Build**   | Push/PR to `main` (docker/backend/frontend paths) | Build & push backend + frontend images to GHCR                                            |
+| **Deploy Staging** | Push to `main` or manual dispatch                 | Build images → Deploy to staging → Health check                                           |
 
 ### CI Features
+
 - **Concurrency groups** prevent duplicate runs
 - **Matrix testing** across Python 3.10 and 3.11
 - **Service containers** for PostgreSQL and Redis in CI
