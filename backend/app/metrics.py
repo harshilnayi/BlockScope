@@ -34,11 +34,6 @@ CACHE_MISSES = Counter(
     ["cache_type"]
 )
 
-# active users (authenticated sessions)
-ACTIVE_USERS = Gauge(
-    "blockscope_active_users",
-    "Currently active authenticated users"
-)
 
 # uptime
 START_TIME = time.time()
@@ -46,4 +41,10 @@ START_TIME = time.time()
 APP_UPTIME = Gauge(
     "blockscope_uptime_seconds",
     "Application uptime in seconds"
+)
+
+# Active authenticated requests
+active_authenticated_requests = Gauge(
+    "blockscope_active_authenticated_requests",
+    "Currently active authenticated (API-key bearing) requests",
 )
