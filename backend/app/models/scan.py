@@ -7,14 +7,22 @@ Defines the Scan and Finding tables.
 from datetime import datetime, timezone
 
 from app.core.database import Base
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, Text
 
 
 class Scan(Base):
     """Represents a smart contract scan result."""
 
     __tablename__ = "scans"
-    __table_args__ = {"extend_existing": True}
+    __table_args__ = (
+        # Indexes for common query patterns
+        Index("idx_scans_scanned_at", "scanned_at"),  # GET /scans ordering
+        Index("idx_scans_created_at", "created_at"),  # Alternative time ordering
+        Index("idx_scans_overall_score", "overall_score"),  # Score-based filtering
+        Index("idx_scans_status", "status"),  # Status filtering
+        Index("idx_scans_contract_name", "contract_name"),  # Name search/filtering
+        {"extend_existing": True},
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     contract_name = Column(String(255), nullable=False)
@@ -31,4 +39,8 @@ class Scan(Base):
     # Timestamps
     scanned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )

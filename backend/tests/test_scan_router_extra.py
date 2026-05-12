@@ -23,11 +23,11 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.models.finding import Finding  # noqa: F401, E402
-from app.models.scan import Scan  # noqa: F401, E402
+from analysis.models import ScanResult  # noqa: E402
 from app.core.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
-from analysis.models import ScanResult  # noqa: E402
+from app.models.finding import Finding  # noqa: F401, E402
+from app.models.scan import Scan  # noqa: F401, E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
@@ -66,6 +66,7 @@ _FAKE = ScanResult(
 # scan.py LINE COVERAGE — error paths
 # ══════════════════════════════════════════════════════════════
 
+
 class TestScanRouterErrorPaths:
 
     def test_scan_json_value_error_returns_400(self):
@@ -79,7 +80,7 @@ class TestScanRouterErrorPaths:
 
     def test_list_scans_db_error_returns_500(self):
         """DB error in list scans returns 500."""
-        with patch("app.routers.scan.paginate", side_effect=RuntimeError("db_fail")):
+        with patch("app.routers.scan.paginate_with_total", side_effect=RuntimeError("db_fail")):
             resp = client.get("/api/v1/scans")
         assert resp.status_code == 500
 
@@ -124,6 +125,7 @@ class TestScanRouterErrorPaths:
 # _run_analysis_and_persist error coverage
 # ══════════════════════════════════════════════════════════════
 
+
 class TestRunAnalysisPersistErrors:
 
     def test_db_commit_failure_propagates(self):
@@ -132,8 +134,9 @@ class TestRunAnalysisPersistErrors:
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock(side_effect=RuntimeError("commit failed"))
 
-        with patch("app.routers.scan.orchestrator.analyze", return_value=_FAKE), \
-             patch("app.routers.scan.get_db", return_value=iter([mock_db])):
+        with patch("app.routers.scan.orchestrator.analyze", return_value=_FAKE), patch(
+            "app.routers.scan.get_db", return_value=iter([mock_db])
+        ):
             resp = client.post(
                 "/api/v1/scan",
                 json={"source_code": "contract Test {}", "contract_name": "Test"},
@@ -145,6 +148,7 @@ class TestRunAnalysisPersistErrors:
 # ══════════════════════════════════════════════════════════════
 # main.py — additional coverage
 # ══════════════════════════════════════════════════════════════
+
 
 class TestMainAdditionalCoverage:
 

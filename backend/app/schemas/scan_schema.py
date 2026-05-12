@@ -95,8 +95,7 @@ class ScanResponse(BaseModel):
     severity_breakdown: Dict[str, int] = Field(
         ...,
         description=(
-            "Finding counts keyed by severity level. "
-            "Keys: critical, high, medium, low, info."
+            "Finding counts keyed by severity level. " "Keys: critical, high, medium, low, info."
         ),
     )
     overall_score: int = Field(
@@ -117,3 +116,22 @@ class ScanResponse(BaseModel):
     )
 
     model_config = {"from_attributes": True}
+
+
+class PaginatedScanResponse(BaseModel):
+    """
+    Paginated response wrapper for scan list endpoints.
+
+    Attributes:
+        items: List of scan results for the current page.
+        total: Total number of scans matching the query.
+        skip: Offset used for this page.
+        limit: Maximum items per page.
+        has_more: Whether there are additional pages after this one.
+    """
+
+    items: List[ScanResponse] = Field(..., description="Scan results for the current page.")
+    total: int = Field(..., ge=0, description="Total number of matching scans.")
+    skip: int = Field(..., ge=0, description="Offset used for this page.")
+    limit: int = Field(..., ge=1, description="Maximum items per page.")
+    has_more: bool = Field(..., description="True if there are additional pages after this one.")

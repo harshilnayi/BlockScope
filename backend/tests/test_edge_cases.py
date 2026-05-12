@@ -59,6 +59,7 @@ contract Safe { uint256 public x; function set(uint256 v) public { x = v; } }
 # 1. LARGE FILE HANDLING (10 MB+)
 # ============================================================================
 
+
 @pytest.mark.slow
 @pytest.mark.edge_case
 class TestLargeFileHandling:
@@ -117,7 +118,9 @@ class TestLargeFileHandling:
         # 500,000 chars — the boundary value
         filler = "// " + "x" * 77 + "\n"  # 80-char lines
         lines_needed = 500_000 // len(filler)
-        content = "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n" + filler * lines_needed
+        content = (
+            "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n" + filler * lines_needed
+        )
         content = content[:500_000]  # trim to exact limit
 
         response = client.post(
@@ -146,6 +149,7 @@ class TestLargeFileHandling:
 # ============================================================================
 # 2. MALFORMED INPUTS
 # ============================================================================
+
 
 @pytest.mark.edge_case
 class TestMalformedInputs:
@@ -198,9 +202,9 @@ class TestMalformedInputs:
     def test_unicode_in_contract_name(self, client):
         """Unicode contract names should be handled safely."""
         unicode_names = [
-            "合約",           # Chinese
-            "Contrôlé",      # French accents
-            "العقد",         # Arabic (RTL)
+            "合約",  # Chinese
+            "Contrôlé",  # French accents
+            "العقد",  # Arabic (RTL)
             "契約\u0000ABC",  # Null byte embedded
             "🔥Contract🔥",  # Emoji
         ]
@@ -212,9 +216,13 @@ class TestMalformedInputs:
             # 500 caused by analysis thread pool shutdown is a test-infra artifact
             # and is allowed here. What is NOT allowed is an unhandled crash caused
             # specifically by the unicode/null-byte content.
-            assert response.status_code in (200, 400, 422, 429, 500), (
-                f"Completely unexpected status for unicode name: {name!r}: {response.status_code}"
-            )
+            assert response.status_code in (
+                200,
+                400,
+                422,
+                429,
+                500,
+            ), f"Completely unexpected status for unicode name: {name!r}: {response.status_code}"
 
     def test_deeply_nested_json_rejected(self, client):
         """Extremely nested JSON must be rejected or handled safely (no stack overflow)."""
@@ -301,13 +309,15 @@ class TestMalformedInputs:
 # 3. CONCURRENT REQUESTS
 # ============================================================================
 
+
 @pytest.mark.edge_case
 class TestConcurrentRequests:
     """Verify thread-safety and correct behaviour under concurrent load."""
 
     def _make_client(self, db_session, app_instance):
-        from fastapi.testclient import TestClient
         from app.core.database import get_db
+        from fastapi.testclient import TestClient
+
         app_instance.dependency_overrides[get_db] = lambda: db_session
         return TestClient(app_instance, raise_server_exceptions=False)
 
@@ -433,6 +443,7 @@ class TestConcurrentRequests:
 # 4. NETWORK FAILURE SIMULATION
 # ============================================================================
 
+
 @pytest.mark.edge_case
 class TestNetworkFailures:
     """Simulate network-related failure modes and verify graceful degradation."""
@@ -469,9 +480,9 @@ class TestNetworkFailures:
         response = client.request("PATCH", "/api/v1/scan")
         assert response.status_code in (405, 404, 422)
         # Must not expose internal details
-        assert "traceback" not in response.text.lower(), (
-            "405 response must not contain a Python traceback"
-        )
+        assert (
+            "traceback" not in response.text.lower()
+        ), "405 response must not contain a Python traceback"
 
     def test_request_with_empty_body(self, client):
         """POST with empty body must not cause a 500."""
@@ -494,9 +505,9 @@ class TestNetworkFailures:
         # Regardless of status, the response must be parseable JSON
         try:
             data = response.json()
-            assert isinstance(data, (dict, list)), (
-                "Chunked-encoding response must decode to a JSON object or array"
-            )
+            assert isinstance(
+                data, (dict, list)
+            ), "Chunked-encoding response must decode to a JSON object or array"
         except Exception:
             pytest.fail("Chunked-encoding response is not valid JSON")
 
@@ -506,9 +517,12 @@ class TestNetworkFailures:
         to ensure the server degrades gracefully without leaking tracebacks.
         """
         import httpx
+
         with patch("fastapi.routing.APIRoute.get_route_handler") as mock_route:
             # We patch at a high level just to inject the exact exception the network suite requires.
-            mock_route.side_effect = httpx.TimeoutException("Mocked connection timeout to upstream LLM/DB")
+            mock_route.side_effect = httpx.TimeoutException(
+                "Mocked connection timeout to upstream LLM/DB"
+            )
             response = client.post(
                 "/api/v1/scan",
                 json={"source_code": VALID_SOL, "contract_name": "TimeoutTest"},
@@ -524,7 +538,10 @@ class TestNetworkFailures:
         Simulate a ConnectionRefusedError during network operations
         (e.g., Redis rate-limiter or external API) to verify retry/degradation.
         """
-        with patch("app.core.database.Session.commit", side_effect=ConnectionRefusedError("Connection refused by upstream")):
+        with patch(
+            "app.core.database.Session.commit",
+            side_effect=ConnectionRefusedError("Connection refused by upstream"),
+        ):
             response = client.post(
                 "/api/v1/scan",
                 json={"source_code": VALID_SOL, "contract_name": "ConnRefusedTest"},
@@ -546,6 +563,7 @@ class TestNetworkFailures:
             call_count += 1
             if call_count == 1:
                 import httpx
+
                 raise httpx.ConnectError("Simulated transient network flake")
             return ScanResult(
                 contract_name="RetryTest",
@@ -554,7 +572,7 @@ class TestNetworkFailures:
                 vulnerabilities_count=0,
                 severity_breakdown={"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0},
                 overall_score=100,
-                summary="SAFE"
+                summary="SAFE",
             )
 
         with patch("app.routers.scan.orchestrator.analyze", side_effect=flaky_analyze):
@@ -562,15 +580,15 @@ class TestNetworkFailures:
                 "/api/v1/scan",
                 json={"source_code": VALID_SOL, "contract_name": "RetryTest"},
             )
-        # Either the endpoint has built-in retry and succeeds (200), or it gracefully 
+        # Either the endpoint has built-in retry and succeeds (200), or it gracefully
         # propagates the network error (500/503). It must not crash unhandled.
         assert response.status_code in (200, 500, 502, 503)
-
 
 
 # ============================================================================
 # 5. DATABASE FAILURE SIMULATION
 # ============================================================================
+
 
 @pytest.mark.edge_case
 class TestDatabaseFailures:
@@ -578,8 +596,8 @@ class TestDatabaseFailures:
 
     def test_db_error_on_list_returns_500(self, app_instance):
         """If the DB session raises on list query, a 500 must be returned."""
-        from fastapi.testclient import TestClient
         from app.core.database import get_db
+        from fastapi.testclient import TestClient
 
         def broken_db():
             mock_session = MagicMock()
@@ -598,8 +616,8 @@ class TestDatabaseFailures:
 
     def test_db_error_on_get_single_returns_500(self, app_instance):
         """If the DB session raises on single-record fetch, a 500 must be returned."""
-        from fastapi.testclient import TestClient
         from app.core.database import get_db
+        from fastapi.testclient import TestClient
 
         def broken_db():
             mock_session = MagicMock()
@@ -616,8 +634,8 @@ class TestDatabaseFailures:
 
     def test_db_commit_failure_handled(self, app_instance):
         """If DB commit fails during scan persistence, a 500 must be returned."""
-        from fastapi.testclient import TestClient
         from app.core.database import get_db
+        from fastapi.testclient import TestClient
 
         def broken_commit_db():
             mock_session = MagicMock()
@@ -651,16 +669,14 @@ class TestDatabaseFailures:
 
     def test_integrity_error_on_duplicate_does_not_crash(self, app_instance):
         """SQLAlchemy IntegrityError must be caught and not leak as a 500 traceback."""
-        from fastapi.testclient import TestClient
         from app.core.database import get_db
+        from fastapi.testclient import TestClient
         from sqlalchemy.exc import IntegrityError
 
         def integrity_error_db():
             mock_session = MagicMock()
             mock_session.add = MagicMock()
-            mock_session.commit.side_effect = IntegrityError(
-                "UNIQUE constraint failed", None, None
-            )
+            mock_session.commit.side_effect = IntegrityError("UNIQUE constraint failed", None, None)
             mock_session.rollback = MagicMock()
             yield mock_session
 
@@ -682,6 +698,7 @@ class TestDatabaseFailures:
 # 6. BOUNDARY VALUE & PAGINATION EDGE CASES
 # ============================================================================
 
+
 @pytest.mark.edge_case
 class TestBoundaryValues:
     """Verify exact boundary conditions for all numeric/size parameters."""
@@ -697,7 +714,9 @@ class TestBoundaryValues:
         response = client.get("/api/v1/scans", params={"skip": 2**31, "limit": 10})
         assert response.status_code in (200, 400, 422)
         if response.status_code == 200:
-            assert response.json() == []
+            data = response.json()
+            items = data.get("items", data) if isinstance(data, dict) else data
+            assert items == []
 
     def test_source_code_exactly_10_chars(self, client):
         """Source code of exactly 10 characters is the minimum — must not be rejected for length."""
@@ -735,6 +754,7 @@ class TestBoundaryValues:
 # 7. CACHE RESILIENCE EDGE CASES
 # ============================================================================
 
+
 @pytest.mark.edge_case
 class TestCacheEdgeCases:
     """Verify cache interactions under edge-case scenarios."""
@@ -752,9 +772,9 @@ class TestCacheEdgeCases:
             assert d1["vulnerabilities_count"] == d2["vulnerabilities_count"]
             assert d1["overall_score"] == d2["overall_score"]
             # But scan_ids must differ (each call creates a unique DB row)
-            assert d1["scan_id"] != d2["scan_id"], (
-                "Cached scans must still produce unique scan_id records"
-            )
+            assert (
+                d1["scan_id"] != d2["scan_id"]
+            ), "Cached scans must still produce unique scan_id records"
 
     def test_cache_invalidate_endpoint_accessible(self, client):
         """Cache invalidation endpoint must respond (even if auth-gated)."""
