@@ -10,10 +10,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import relationship
-
 from app.models.base import Base
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 
 class Finding(Base):
@@ -40,6 +39,10 @@ class Finding(Base):
     """
 
     __tablename__ = "findings"
+    __table_args__ = (
+        # Composite index: efficiently query findings for a scan filtered by severity
+        Index("idx_findings_scan_severity", "scan_id", "severity"),
+    )
 
     # ──────────────────────────────────────────────
     # Columns

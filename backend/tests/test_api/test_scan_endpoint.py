@@ -27,14 +27,15 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-# ── Import models FIRST so SQLAlchemy registers relationships ──
-from app.models.finding import Finding  # noqa: E402 F401
-from app.models.scan import Scan  # noqa: E402 F401
+from analysis.models import ScanResult  # noqa: E402
 
 # ── Now import the app and DB tools ──
 from app.core.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
-from analysis.models import ScanResult  # noqa: E402
+
+# ── Import models FIRST so SQLAlchemy registers relationships ──
+from app.models.finding import Finding  # noqa: E402 F401
+from app.models.scan import Scan  # noqa: E402 F401
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
@@ -78,6 +79,7 @@ _FAKE_RESULT = ScanResult(
 # Root + info
 # ══════════════════════════════════════════════════════════════
 
+
 def test_root_returns_200():
     resp = client.get("/")
     assert resp.status_code == 200
@@ -92,6 +94,7 @@ def test_api_info_returns_200():
 # ══════════════════════════════════════════════════════════════
 # File upload scan
 # ══════════════════════════════════════════════════════════════
+
 
 def test_scan_file_success_mocked():
     """Mocked orchestrator: endpoint should return 200."""
@@ -142,8 +145,16 @@ def test_scan_file_response_has_required_keys():
             files={"file": ("A.sol", BytesIO(sol), "text/plain")},
         )
     data = resp.json()
-    required = {"scan_id", "contract_name", "findings", "severity_breakdown",
-                "overall_score", "summary", "timestamp", "vulnerabilities_count"}
+    required = {
+        "scan_id",
+        "contract_name",
+        "findings",
+        "severity_breakdown",
+        "overall_score",
+        "summary",
+        "timestamp",
+        "vulnerabilities_count",
+    }
     assert required.issubset(data.keys())
 
 
@@ -173,6 +184,7 @@ def test_scan_file_malformed_contract_graceful():
 # ══════════════════════════════════════════════════════════════
 # JSON scan endpoint
 # ══════════════════════════════════════════════════════════════
+
 
 def test_scan_json_success_mocked():
     with patch("app.routers.scan.orchestrator.analyze", return_value=_FAKE_RESULT):
@@ -206,10 +218,15 @@ def test_scan_json_real_contract():
 # Scans list + get-by-ID
 # ══════════════════════════════════════════════════════════════
 
+
 def test_list_scans_returns_200():
     resp = client.get("/api/v1/scans")
     assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    data = resp.json()
+    assert "items" in data
+    assert isinstance(data["items"], list)
+    assert "total" in data
+    assert "has_more" in data
 
 
 def test_list_scans_limit_exceeded_returns_400():
@@ -265,6 +282,7 @@ def test_concurrent_scans_unique_ids():
 # ══════════════════════════════════════════════════════════════
 # 404 handler
 # ══════════════════════════════════════════════════════════════
+
 
 def test_custom_404_response():
     resp = client.get("/this/does/not/exist")
