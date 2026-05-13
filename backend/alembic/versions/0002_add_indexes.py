@@ -15,6 +15,7 @@ Adds indexes to support the most common query patterns:
 
 from typing import Sequence, Union
 
+import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -27,7 +28,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Create performance indexes."""
     # scans table
-    op.create_index("idx_scans_scanned_at", "scans", ["scanned_at"])
+    op.create_index("idx_scans_scanned_at", "scans", [sa.text("scanned_at DESC")])
     op.create_index("idx_scans_created_at", "scans", ["created_at"])
     op.create_index("idx_scans_overall_score", "scans", ["overall_score"])
     op.create_index("idx_scans_status", "scans", ["status"])

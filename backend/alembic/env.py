@@ -29,11 +29,11 @@ if BASE_DIR not in sys.path:
 
 # ---------------------------------------------------------------------------
 # Import models so Alembic can detect them for --autogenerate.
-# The wildcard import from app.models registers Scan and Finding with the
-# SQLAlchemy mapper before we hand metadata to Alembic.
+# Explicit imports (rather than wildcard) keep the namespace clean and
+# make it obvious which models participate in migrations.
 # ---------------------------------------------------------------------------
 from app.core.database import Base  # noqa: E402
-from app.models import *  # noqa: E402, F401, F403
+from app.models import Scan, Finding  # noqa: E402, F401
 
 # ---------------------------------------------------------------------------
 # Alembic Config object — provides access to alembic.ini values.

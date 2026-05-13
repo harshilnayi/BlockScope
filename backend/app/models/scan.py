@@ -7,7 +7,7 @@ Defines the Scan and Finding tables.
 from datetime import datetime, timezone
 
 from app.core.database import Base
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, Text, desc
 
 
 class Scan(Base):
@@ -16,7 +16,7 @@ class Scan(Base):
     __tablename__ = "scans"
     __table_args__ = (
         # Indexes for common query patterns
-        Index("idx_scans_scanned_at", "scanned_at"),  # GET /scans ordering
+        Index("idx_scans_scanned_at", desc("scanned_at")),  # GET /scans ordering (DESC)
         Index("idx_scans_created_at", "created_at"),  # Alternative time ordering
         Index("idx_scans_overall_score", "overall_score"),  # Score-based filtering
         Index("idx_scans_status", "status"),  # Status filtering

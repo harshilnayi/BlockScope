@@ -209,6 +209,14 @@ def paginate_with_total(
     Issues a ``COUNT(*)`` query first, then fetches the page.  Use this
     when the client needs to render paging controls.
 
+    .. note::
+
+        Under PostgreSQL's default ``READ COMMITTED`` isolation, the
+        ``COUNT(*)`` and the page query are two separate snapshots.
+        Concurrent inserts/deletes may cause ``total`` to be slightly
+        inconsistent with ``items``.  This is acceptable for pagination
+        UI controls but should not be relied upon for exact accounting.
+
     Args:
         query: An existing SQLAlchemy ORM query object.
         skip: Number of records to skip (offset).

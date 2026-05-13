@@ -31,7 +31,7 @@ from app.core.database import get_by_id, get_db, paginate, paginate_with_total
 from app.core.logger import PerformanceTimer, log_error_context, logger
 from app.metrics import CACHE_HITS, CACHE_MISSES
 from app.models.scan import Scan
-from app.schemas.scan_schema import PaginatedScanResponse, ScanRequest, ScanResponse
+from app.schemas.scan_schema import PaginatedScanResponse, ScanListResponse, ScanRequest, ScanResponse
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session, defer
 
@@ -214,6 +214,31 @@ def _scan_record_to_response(scan: Scan) -> ScanResponse:
         overall_score=scan.overall_score,
         summary=scan.summary,
         findings=scan.findings or [],
+        timestamp=scan.scanned_at,
+    )
+
+
+def _scan_record_to_list_response(scan: Scan) -> ScanListResponse:
+    """
+    Convert an ORM ``Scan`` instance to a lightweight ``ScanListResponse``.
+
+    Unlike :func:`_scan_record_to_response`, this does **not** access
+    ``scan.findings``, so the column can safely be deferred in list
+    queries without triggering a lazy-load.
+
+    Args:
+        scan: A committed (ID-bearing) Scan ORM object.
+
+    Returns:
+        ``ScanListResponse`` (no findings) ready for the API caller.
+    """
+    return ScanListResponse(
+        scan_id=scan.id,
+        contract_name=scan.contract_name,
+        vulnerabilities_count=scan.vulnerabilities_count,
+        severity_breakdown=scan.severity_breakdown,
+        overall_score=scan.overall_score,
+        summary=scan.summary,
         timestamp=scan.scanned_at,
     )
 
@@ -509,10 +534,10 @@ async def list_scans(
     """
     Return a paginated list of historical scans, newest first.
 
-    The heavy ``source_code`` column is deferred to avoid transferring
-    up to 500 KB per row on list queries.  ``findings`` is NOT deferred
-    because ``_scan_record_to_response`` accesses it for serialisation;
-    deferring it would cause N+1 lazy-load queries.
+    Heavy columns (``source_code``, ``findings``) are deferred because
+    the list response uses :class:`ScanListResponse` which excludes
+    findings entirely.  This avoids transferring up to 500 KB per row
+    and eliminates N+1 lazy-load queries.
 
     Args:
         http_request: FastAPI ``Request`` object.
@@ -537,12 +562,13 @@ async def list_scans(
 
     try:
         with PerformanceTimer("db_list_scans", _scan_logger, extra={"request_id": request_id}):
-            # Defer only source_code (up to 500 KB TEXT); findings is kept
-            # because _scan_record_to_response() reads it for serialisation.
-            # Deferring findings would cause N+1 lazy-load SELECTs per page.
+            # Defer heavy TEXT/JSON columns that the list view does not need.
+            # source_code can be up to 500 KB; findings is a large JSON blob.
+            # Both are safely deferred because _scan_record_to_list_response()
+            # does not access either column.
             base_query = (
                 db.query(Scan)
-                .options(defer(Scan.source_code))
+                .options(defer(Scan.source_code), defer(Scan.findings))
                 .order_by(Scan.scanned_at.desc())
             )
             # TODO(perf): paginate_with_total issues COUNT(*) on every request.
@@ -551,7 +577,7 @@ async def list_scans(
             page = paginate_with_total(base_query, skip=skip, limit=limit)
 
         return PaginatedScanResponse(
-            items=[_scan_record_to_response(scan) for scan in page.items],
+            items=[_scan_record_to_list_response(scan) for scan in page.items],
             total=page.total,
             skip=page.skip,
             limit=page.limit,
