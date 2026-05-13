@@ -509,8 +509,10 @@ async def list_scans(
     """
     Return a paginated list of historical scans, newest first.
 
-    Heavy columns (``source_code``, ``findings``) are deferred to avoid
-    transferring up to 500 KB per row on list queries.
+    The heavy ``source_code`` column is deferred to avoid transferring
+    up to 500 KB per row on list queries.  ``findings`` is NOT deferred
+    because ``_scan_record_to_response`` accesses it for serialisation;
+    deferring it would cause N+1 lazy-load queries.
 
     Args:
         http_request: FastAPI ``Request`` object.
@@ -535,13 +537,17 @@ async def list_scans(
 
     try:
         with PerformanceTimer("db_list_scans", _scan_logger, extra={"request_id": request_id}):
-            # Defer heavy TEXT/JSON columns that the list view does not need.
-            # They are still loaded on demand if accessed (e.g. GET /scans/{id}).
+            # Defer only source_code (up to 500 KB TEXT); findings is kept
+            # because _scan_record_to_response() reads it for serialisation.
+            # Deferring findings would cause N+1 lazy-load SELECTs per page.
             base_query = (
                 db.query(Scan)
-                .options(defer(Scan.source_code), defer(Scan.findings))
+                .options(defer(Scan.source_code))
                 .order_by(Scan.scanned_at.desc())
             )
+            # TODO(perf): paginate_with_total issues COUNT(*) on every request.
+            # At scale (>100K rows), consider caching the count with a short
+            # TTL or using pg_class.reltuples for an approximate count.
             page = paginate_with_total(base_query, skip=skip, limit=limit)
 
         return PaginatedScanResponse(

@@ -83,7 +83,10 @@ else:
     @event.listens_for(engine, "connect")
     def _set_pg_statement_timeout(dbapi_conn, connection_record):
         with dbapi_conn.cursor() as cursor:
-            cursor.execute(f"SET statement_timeout = '{DB_STATEMENT_TIMEOUT}'")
+            # Use explicit int() cast to guarantee the value is safe for SQL.
+            # Avoid f-string interpolation into raw SQL as a defence-in-depth
+            # measure in case the settings type changes in the future.
+            cursor.execute("SET statement_timeout = %s", (int(DB_STATEMENT_TIMEOUT),))
 
 
 # ──────────────────────────────────────────────
