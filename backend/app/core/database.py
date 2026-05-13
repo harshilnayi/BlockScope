@@ -11,9 +11,10 @@ Provides:
 
 import logging
 from contextlib import contextmanager
-from typing import Any, Generator, Optional, Type, TypeVar
+from dataclasses import dataclass
+from typing import Any, Generator, List, Optional, Type, TypeVar
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 # ──────────────────────────────────────────────
@@ -28,6 +29,7 @@ try:
     DB_POOL_TIMEOUT: int = settings.DB_POOL_TIMEOUT
     DB_POOL_RECYCLE: int = settings.DB_POOL_RECYCLE
     DB_ECHO: bool = settings.DB_ECHO
+    DB_STATEMENT_TIMEOUT: int = settings.DB_STATEMENT_TIMEOUT
 
 except ImportError:
     import os
@@ -50,6 +52,7 @@ except ImportError:
     DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
     DB_POOL_RECYCLE = int(os.getenv("DB_POOL_RECYCLE", "3600"))
     DB_ECHO = os.getenv("DB_ECHO", "false").lower() == "true"
+    DB_STATEMENT_TIMEOUT = int(os.getenv("DB_STATEMENT_TIMEOUT", "30000"))
 
 logger = logging.getLogger("blockscope.database")
 
@@ -71,9 +74,20 @@ else:
         max_overflow=DB_MAX_OVERFLOW,
         pool_timeout=DB_POOL_TIMEOUT,
         pool_recycle=DB_POOL_RECYCLE,
-        pool_pre_ping=True,   # Detect stale connections before use
+        pool_pre_ping=True,  # Detect stale connections before use
         echo=DB_ECHO,
     )
+
+    # Enforce statement timeout on every new PostgreSQL connection to prevent
+    # runaway queries from holding locks or exhausting the connection pool.
+    @event.listens_for(engine, "connect")
+    def _set_pg_statement_timeout(dbapi_conn, connection_record):
+        with dbapi_conn.cursor() as cursor:
+            # Use explicit int() cast to guarantee the value is safe for SQL.
+            # Avoid f-string interpolation into raw SQL as a defence-in-depth
+            # measure in case the settings type changes in the future.
+            cursor.execute("SET statement_timeout = %s", (int(DB_STATEMENT_TIMEOUT),))
+
 
 # ──────────────────────────────────────────────
 # Session factory
@@ -91,6 +105,21 @@ Base = declarative_base()
 
 # Generic model type for query helpers
 _ModelT = TypeVar("_ModelT")
+
+
+@dataclass
+class PaginatedResult:
+    """Container for paginated query results with total count."""
+
+    items: List[Any]
+    total: int
+    skip: int
+    limit: int
+
+    @property
+    def has_more(self) -> bool:
+        """Return True if there are more pages after this one."""
+        return (self.skip + self.limit) < self.total
 
 
 # ──────────────────────────────────────────────
@@ -166,6 +195,47 @@ def paginate(
     effective_limit = min(max(1, limit), max_limit)
     effective_skip = max(0, skip)
     return query.offset(effective_skip).limit(effective_limit).all()
+
+
+def paginate_with_total(
+    query: Any,
+    skip: int = 0,
+    limit: int = 20,
+    max_limit: int = 100,
+) -> PaginatedResult:
+    """
+    Apply safe pagination and also return the total record count.
+
+    Issues a ``COUNT(*)`` query first, then fetches the page.  Use this
+    when the client needs to render paging controls.
+
+    .. note::
+
+        Under PostgreSQL's default ``READ COMMITTED`` isolation, the
+        ``COUNT(*)`` and the page query are two separate snapshots.
+        Concurrent inserts/deletes may cause ``total`` to be slightly
+        inconsistent with ``items``.  This is acceptable for pagination
+        UI controls but should not be relied upon for exact accounting.
+
+    Args:
+        query: An existing SQLAlchemy ORM query object.
+        skip: Number of records to skip (offset).
+        limit: Maximum records to return.
+        max_limit: Hard ceiling for ``limit`` (default 100).
+
+    Returns:
+        :class:`PaginatedResult` with ``items``, ``total``, ``skip``, ``limit``.
+    """
+    effective_limit = min(max(1, limit), max_limit)
+    effective_skip = max(0, skip)
+    total = query.count()
+    items = query.offset(effective_skip).limit(effective_limit).all()
+    return PaginatedResult(
+        items=items,
+        total=total,
+        skip=effective_skip,
+        limit=effective_limit,
+    )
 
 
 def get_by_id(

@@ -95,8 +95,7 @@ class ScanResponse(BaseModel):
     severity_breakdown: Dict[str, int] = Field(
         ...,
         description=(
-            "Finding counts keyed by severity level. "
-            "Keys: critical, high, medium, low, info."
+            "Finding counts keyed by severity level. " "Keys: critical, high, medium, low, info."
         ),
     )
     overall_score: int = Field(
@@ -117,3 +116,68 @@ class ScanResponse(BaseModel):
     )
 
     model_config = {"from_attributes": True}
+
+
+class ScanListResponse(BaseModel):
+    """
+    Lightweight response schema for scan list endpoints.
+
+    Identical to :class:`ScanResponse` but **excludes** the ``findings``
+    list.  This allows the database query to defer the heavy ``findings``
+    JSON column without triggering N+1 lazy-load queries during
+    serialisation.
+
+    Attributes:
+        scan_id: Database-assigned primary key for this scan record.
+        contract_name: Name of the analysed contract.
+        vulnerabilities_count: Total number of findings detected.
+        severity_breakdown: Finding counts grouped by severity level.
+        overall_score: Security score from 0 (most vulnerable) to 100 (safest).
+        summary: One-line human-readable result summary.
+        timestamp: UTC datetime when the analysis was completed.
+    """
+
+    scan_id: int = Field(..., description="Unique database ID for this scan.", ge=1)
+    contract_name: str = Field(..., description="Name of the scanned contract.")
+    vulnerabilities_count: int = Field(
+        ..., ge=0, description="Total number of detected vulnerabilities."
+    )
+    severity_breakdown: Dict[str, int] = Field(
+        ...,
+        description=(
+            "Finding counts keyed by severity level. " "Keys: critical, high, medium, low, info."
+        ),
+    )
+    overall_score: int = Field(
+        ...,
+        ge=0,
+        le=100,
+        description="Security score from 0 (most vulnerable) to 100 (safest).",
+    )
+    summary: str = Field(
+        ..., description="One-line result summary, e.g. '2 critical, 1 high — UNSAFE [FAIL]'."
+    )
+    timestamp: datetime = Field(
+        ..., description="UTC datetime at which the analysis was completed."
+    )
+
+    model_config = {"from_attributes": True}
+
+
+class PaginatedScanResponse(BaseModel):
+    """
+    Paginated response wrapper for scan list endpoints.
+
+    Attributes:
+        items: List of scan results for the current page.
+        total: Total number of scans matching the query.
+        skip: Offset used for this page.
+        limit: Maximum items per page.
+        has_more: Whether there are additional pages after this one.
+    """
+
+    items: List[ScanListResponse] = Field(..., description="Scan results for the current page.")
+    total: int = Field(..., ge=0, description="Total number of matching scans.")
+    skip: int = Field(..., ge=0, description="Offset used for this page.")
+    limit: int = Field(..., ge=1, description="Maximum items per page.")
+    has_more: bool = Field(..., description="True if there are additional pages after this one.")

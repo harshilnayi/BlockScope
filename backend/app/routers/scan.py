@@ -26,15 +26,14 @@ from analysis import AnalysisOrchestrator
 from analysis import ScanRequest as AnalysisScanRequest
 from analysis.cache import analysis_cache as _analysis_cache
 from analysis.models import ScanResult
-from app.core.database import get_by_id, get_db, paginate
+from app.core.config import settings
+from app.core.database import get_by_id, get_db, paginate, paginate_with_total
 from app.core.logger import PerformanceTimer, log_error_context, logger
 from app.metrics import CACHE_HITS, CACHE_MISSES
 from app.models.scan import Scan
-from app.schemas.scan_schema import ScanRequest, ScanResponse
+from app.schemas.scan_schema import PaginatedScanResponse, ScanListResponse, ScanRequest, ScanResponse
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from sqlalchemy.orm import Session
-
-from app.core.config import settings
+from sqlalchemy.orm import Session, defer
 
 # Router-level analysis cache.
 # Uses the existing analysis_cache singleton (analysis/cache.py) which provides:
@@ -65,6 +64,7 @@ except ImportError:
 
     def rate_limit(**kwargs: Any):  # type: ignore[misc]
         return lambda func: func
+
 
 # ----------------------------------------------
 # Module-level singletons
@@ -214,6 +214,31 @@ def _scan_record_to_response(scan: Scan) -> ScanResponse:
         overall_score=scan.overall_score,
         summary=scan.summary,
         findings=scan.findings or [],
+        timestamp=scan.scanned_at,
+    )
+
+
+def _scan_record_to_list_response(scan: Scan) -> ScanListResponse:
+    """
+    Convert an ORM ``Scan`` instance to a lightweight ``ScanListResponse``.
+
+    Unlike :func:`_scan_record_to_response`, this does **not** access
+    ``scan.findings``, so the column can safely be deferred in list
+    queries without triggering a lazy-load.
+
+    Args:
+        scan: A committed (ID-bearing) Scan ORM object.
+
+    Returns:
+        ``ScanListResponse`` (no findings) ready for the API caller.
+    """
+    return ScanListResponse(
+        scan_id=scan.id,
+        contract_name=scan.contract_name,
+        vulnerabilities_count=scan.vulnerabilities_count,
+        severity_breakdown=scan.severity_breakdown,
+        overall_score=scan.overall_score,
+        summary=scan.summary,
         timestamp=scan.scanned_at,
     )
 
@@ -436,9 +461,7 @@ async def scan_contract_file(
         if ext != ".sol":
             raise HTTPException(
                 status_code=400,
-                detail=(
-                    f"Invalid file type '{ext}'. Only .sol (Solidity) files are accepted."
-                ),
+                detail=(f"Invalid file type '{ext}'. Only .sol (Solidity) files are accepted."),
             )
 
         # Validate via security module if available (adds MIME, size, content checks)
@@ -500,16 +523,21 @@ async def scan_contract_file(
         ) from exc
 
 
-@router.get("/scans", response_model=List[ScanResponse], summary="List recent scans")
+@router.get("/scans", response_model=PaginatedScanResponse, summary="List recent scans")
 async def list_scans(
     http_request: Request,
     skip: int = 0,
     limit: int = 10,
     db: Session = Depends(get_db),
     api_key: Optional[Any] = Depends(_api_key_dep()),
-) -> List[ScanResponse]:
+) -> PaginatedScanResponse:
     """
     Return a paginated list of historical scans, newest first.
+
+    Heavy columns (``source_code``, ``findings``) are deferred because
+    the list response uses :class:`ScanListResponse` which excludes
+    findings entirely.  This avoids transferring up to 500 KB per row
+    and eliminates N+1 lazy-load queries.
 
     Args:
         http_request: FastAPI ``Request`` object.
@@ -519,7 +547,7 @@ async def list_scans(
         api_key: Optional API key.
 
     Returns:
-        List of ``ScanResponse`` objects.
+        ``PaginatedScanResponse`` with items, total count, and paging metadata.
 
     Raises:
         HTTPException: 400 if ``limit`` > 100; 500 on database error.
@@ -534,10 +562,27 @@ async def list_scans(
 
     try:
         with PerformanceTimer("db_list_scans", _scan_logger, extra={"request_id": request_id}):
-            base_query = db.query(Scan).order_by(Scan.scanned_at.desc())
-            scans: List[Scan] = paginate(base_query, skip=skip, limit=limit)
+            # Defer heavy TEXT/JSON columns that the list view does not need.
+            # source_code can be up to 500 KB; findings is a large JSON blob.
+            # Both are safely deferred because _scan_record_to_list_response()
+            # does not access either column.
+            base_query = (
+                db.query(Scan)
+                .options(defer(Scan.source_code), defer(Scan.findings))
+                .order_by(Scan.scanned_at.desc())
+            )
+            # TODO(perf): paginate_with_total issues COUNT(*) on every request.
+            # At scale (>100K rows), consider caching the count with a short
+            # TTL or using pg_class.reltuples for an approximate count.
+            page = paginate_with_total(base_query, skip=skip, limit=limit)
 
-        return [_scan_record_to_response(scan) for scan in scans]
+        return PaginatedScanResponse(
+            items=[_scan_record_to_list_response(scan) for scan in page.items],
+            total=page.total,
+            skip=page.skip,
+            limit=page.limit,
+            has_more=page.has_more,
+        )
 
     except HTTPException:
         raise

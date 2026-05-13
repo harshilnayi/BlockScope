@@ -49,6 +49,7 @@ def test_scan_list_contains_persisted_scan(client, tmp_path):
     res2 = client.get("/api/v1/scans")
     assert res2.status_code == 200
 
-    scans = res2.json()
+    data = res2.json()
+    scans = data.get("items", data) if isinstance(data, dict) else data
     assert isinstance(scans, list)
     assert any(s["contract_name"] == "ListDB" for s in scans)
