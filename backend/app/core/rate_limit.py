@@ -88,12 +88,21 @@ class _InMemoryRateLimiter:
 
     Uses a sliding window counter per identifier (IP/API key).
     Only tracks per-minute limits to keep memory bounded.
+
+    Note: ``is_rate_limited()`` is synchronous and acquires a
+    ``threading.Lock``.  This is safe in async context because
+    the critical section is sub-microsecond (dict lookups + deque
+    operations), so event-loop blocking is negligible.
     """
+
+    # Hard cap on tracked identifiers to prevent memory exhaustion
+    # under DDoS with many unique IPs.
+    MAX_IDENTIFIERS: int = 10_000
 
     def __init__(self) -> None:
         self._windows: dict[str, collections.deque] = {}
         self._lock = threading.Lock()
-        # Clean up stale entries every 60s worth of calls
+        # Clean up stale entries every 500 calls
         self._cleanup_counter = 0
 
     def is_rate_limited(self, identifier: str, per_minute: int) -> tuple[bool, dict]:
@@ -114,6 +123,9 @@ class _InMemoryRateLimiter:
                 self._cleanup_counter = 0
 
             if identifier not in self._windows:
+                # Enforce hard cap to prevent memory exhaustion
+                if len(self._windows) >= self.MAX_IDENTIFIERS:
+                    self._evict_oldest()
                 self._windows[identifier] = collections.deque()
 
             window = self._windows[identifier]
@@ -155,6 +167,16 @@ class _InMemoryRateLimiter:
         ]
         for k in stale:
             del self._windows[k]
+
+    def _evict_oldest(self) -> None:
+        """Evict the identifier with the oldest last-seen timestamp."""
+        if not self._windows:
+            return
+        oldest_key = min(
+            self._windows,
+            key=lambda k: self._windows[k][-1] if self._windows[k] else 0.0,
+        )
+        del self._windows[oldest_key]
 
 
 _fallback_limiter = _InMemoryRateLimiter()
@@ -313,8 +335,13 @@ class RateLimiter:
             return False, limit_info
 
         except Exception as exc:
-            # Redis error — fall back to in-memory
+            # Redis error — mark unavailable and fall back to in-memory
             logger.warning("Redis rate-limit error, falling back to in-memory: %s", exc)
+            try:
+                from app.core.redis import redis_manager
+                redis_manager.mark_unavailable(str(exc))
+            except Exception:
+                pass
             per_min = limits.get("per_minute", 60)
             return _fallback_limiter.is_rate_limited(identifier, per_min)
 

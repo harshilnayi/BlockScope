@@ -108,6 +108,7 @@ class RedisScanCache:
 
         except Exception as exc:
             self._errors += 1
+            self._notify_unavailable(exc)
             logger.warning("Redis cache GET failed: %s", exc)
             return None
 
@@ -150,6 +151,7 @@ class RedisScanCache:
 
         except Exception as exc:
             self._errors += 1
+            self._notify_unavailable(exc)
             logger.warning("Redis cache SET failed: %s", exc)
             return False
 
@@ -172,6 +174,7 @@ class RedisScanCache:
             return deleted > 0
         except Exception as exc:
             self._errors += 1
+            self._notify_unavailable(exc)
             logger.warning("Redis cache INVALIDATE failed: %s", exc)
             return False
 
@@ -192,15 +195,35 @@ class RedisScanCache:
         try:
             pattern = f"{self._prefix}*"
             count = 0
+            batch: list = []
             async for key in r.scan_iter(match=pattern, count=100):
-                await r.delete(key)
-                count += 1
+                batch.append(key)
+                if len(batch) >= 100:
+                    await r.delete(*batch)
+                    count += len(batch)
+                    batch.clear()
+            if batch:
+                await r.delete(*batch)
+                count += len(batch)
             logger.info("Redis cache cleared: %d entries removed", count)
             return count
         except Exception as exc:
             self._errors += 1
+            self._notify_unavailable(exc)
             logger.warning("Redis cache CLEAR failed: %s", exc)
             return 0
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _notify_unavailable(self, exc: Exception) -> None:
+        """Notify the RedisManager that an operation failed."""
+        try:
+            from app.core.redis import redis_manager
+            redis_manager.mark_unavailable(str(exc))
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Observability

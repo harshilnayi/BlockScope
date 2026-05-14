@@ -52,12 +52,14 @@ def check_redis():
                 "status": "ok",
                 **{k: v for k, v in redis_manager.stats.items() if k != "connected"},
             }
-        elif redis_manager._redis is not None:
-            # Manager exists but not available — last error is informative
-            return {
-                "status": "error",
-                "detail": redis_manager._last_error or "Redis unreachable",
-            }
+        else:
+            conn_status = redis_manager.connection_status
+            if conn_status["initialized"]:
+                # Manager exists but not available — last error is informative
+                return {
+                    "status": "error",
+                    "detail": conn_status["last_error"] or "Redis unreachable",
+                }
     except Exception:
         pass  # Fall through to legacy sync check
 

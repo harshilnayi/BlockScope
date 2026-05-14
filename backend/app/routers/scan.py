@@ -300,12 +300,21 @@ async def _run_analysis_and_persist(
 
                 l2_data = await redis_scan_cache.get(cache_key)
                 if l2_data is not None:
-                    CACHE_HITS.labels(cache_type="redis_scan").inc()
-                    _scan_logger.info("L2 Redis cache hit — rebuilding ScanResult", extra=ctx)
-                    scan_result = ScanResult(**l2_data)
-                    # Promote to L1 for faster subsequent hits
-                    _analysis_cache.set(cache_key, scan_result)
-                    l2_hit = True
+                    try:
+                        scan_result = ScanResult(**l2_data)
+                    except Exception as reconstruct_exc:
+                        _scan_logger.warning(
+                            "L2 cache hit but ScanResult reconstruction failed "
+                            "(schema drift?): %s — falling through to full analysis",
+                            reconstruct_exc,
+                            extra=ctx,
+                        )
+                    else:
+                        CACHE_HITS.labels(cache_type="redis_scan").inc()
+                        _scan_logger.info("L2 Redis cache hit — rebuilding ScanResult", extra=ctx)
+                        # Promote to L1 for faster subsequent hits
+                        _analysis_cache.set(cache_key, scan_result)
+                        l2_hit = True
             except Exception as exc:
                 _scan_logger.debug("L2 Redis cache lookup failed: %s", exc)
 

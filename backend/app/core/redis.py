@@ -36,10 +36,10 @@ class RedisManager:
     Async Redis connection manager with health tracking.
 
     Features:
-        - Single shared connection pool
+        - Single shared connection pool (module-level instance)
         - ``is_available`` flag for graceful degradation
-        - Automatic health-check with configurable interval
-        - Thread-safe singleton pattern
+        - ``mark_unavailable()`` for consumers to report errors
+        - ``connection_status`` property for health endpoints
     """
 
     def __init__(self) -> None:
@@ -127,6 +127,35 @@ class RedisManager:
         if self._redis is None:
             raise RuntimeError("Redis not connected. Call connect() first.")
         return self._redis
+
+    def mark_unavailable(self, error: str) -> None:
+        """
+        Mark Redis as unavailable after a consumer encounters an error.
+
+        This prevents stale ``is_available`` between health checks.
+        Consumers (cache, rate-limit) should call this in their
+        ``except`` handlers when a Redis operation fails.
+
+        Args:
+            error: Description of the error that occurred.
+        """
+        self._available = False
+        self._last_error = error
+        self._last_check = time.time()
+        logger.warning("Redis marked unavailable by consumer: %s", error)
+
+    @property
+    def connection_status(self) -> dict:
+        """
+        Return connection status for health endpoints.
+
+        Use this instead of accessing private attributes directly.
+        """
+        return {
+            "initialized": self._redis is not None,
+            "available": self._available,
+            "last_error": self._last_error,
+        }
 
     async def ping(self) -> bool:
         """

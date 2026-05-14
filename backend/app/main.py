@@ -596,7 +596,6 @@ async def invalidate_cache(
         cleared_redis = 0
         try:
             from app.core.cache import redis_scan_cache
-            import asyncio
             cleared_redis = await redis_scan_cache.clear()
         except Exception:
             pass
