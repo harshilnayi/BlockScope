@@ -43,7 +43,25 @@ def check_redis():
     if not _REDIS_AVAILABLE:
         return {"status": "unavailable", "detail": "redis package not installed"}
 
-    # Skip if rate limiting is disabled and we're not in test mode
+    # Prefer the centralized RedisManager (non-blocking, already connected)
+    try:
+        from app.core.redis import redis_manager
+
+        if redis_manager.is_available:
+            return {
+                "status": "ok",
+                **{k: v for k, v in redis_manager.stats.items() if k != "connected"},
+            }
+        elif redis_manager._redis is not None:
+            # Manager exists but not available — last error is informative
+            return {
+                "status": "error",
+                "detail": redis_manager._last_error or "Redis unreachable",
+            }
+    except Exception:
+        pass  # Fall through to legacy sync check
+
+    # Fallback: sync check (used when RedisManager hasn't been initialized yet)
     rate_limit_enabled = getattr(settings, "RATE_LIMIT_ENABLED", False)
     testing = getattr(settings, "TESTING", False)
     if not rate_limit_enabled and not testing:

@@ -1,9 +1,19 @@
 """
-BlockScope Rate Limiting Middleware
-Implements sliding window rate limiting with Redis
+BlockScope Rate Limiting Middleware.
+
+Implements sliding window rate limiting backed by Redis, with automatic
+in-memory fallback when Redis is unreachable.
+
+Architecture:
+    - Primary: Redis sorted-set based sliding window (accurate, distributed)
+    - Fallback: Simple in-memory counter (per-IP, per-minute only)
+    - Auto-recovery: Switches back to Redis once connectivity is restored
 """
 
+import collections
+import logging
 import time
+import threading
 from typing import Callable, Optional
 
 import redis.asyncio as aioredis
@@ -13,14 +23,22 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-# ==================== Redis Connection ====================
+logger = logging.getLogger("blockscope.ratelimit")
+
+# ==================== Redis Connection (Legacy Compat) ====================
 
 
 class RateLimitRedis:
-    """Redis connection manager for rate limiting"""
+    """
+    Redis connection manager for rate limiting.
+
+    .. deprecated::
+        Use ``app.core.redis.redis_manager`` instead.  This class is
+        retained for backward compatibility and now delegates to the
+        centralised ``RedisManager``.
+    """
 
     _instance = None
-    _redis: Optional[aioredis.Redis] = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -28,32 +46,118 @@ class RateLimitRedis:
         return cls._instance
 
     async def connect(self):
-        """Establish Redis connection"""
-        if self._redis is None:
-            self._redis = await aioredis.from_url(
-                settings.redis_url_str,
-                password=settings.REDIS_PASSWORD,
-                max_connections=settings.REDIS_MAX_CONNECTIONS,
-                socket_timeout=settings.REDIS_SOCKET_TIMEOUT,
-                socket_connect_timeout=settings.REDIS_SOCKET_CONNECT_TIMEOUT,
-                decode_responses=True,
-            )
+        """Establish Redis connection via the centralised RedisManager."""
+        try:
+            from app.core.redis import redis_manager
+
+            if not redis_manager.is_available:
+                await redis_manager.connect(
+                    url=settings.redis_url_str,
+                    password=settings.REDIS_PASSWORD,
+                    max_connections=settings.REDIS_MAX_CONNECTIONS,
+                    socket_timeout=settings.REDIS_SOCKET_TIMEOUT,
+                    socket_connect_timeout=settings.REDIS_SOCKET_CONNECT_TIMEOUT,
+                )
+        except Exception as exc:
+            logger.warning("RateLimitRedis.connect() failed: %s", exc)
 
     async def disconnect(self):
-        """Close Redis connection"""
-        if self._redis:
-            await self._redis.close()
-            self._redis = None
+        """Disconnect via the centralised RedisManager."""
+        try:
+            from app.core.redis import redis_manager
+            await redis_manager.disconnect()
+        except Exception:
+            pass
 
     @property
     def redis(self) -> aioredis.Redis:
-        """Get Redis client"""
-        if self._redis is None:
-            raise RuntimeError("Redis not connected. Call connect() first.")
-        return self._redis
+        """Get Redis client from the centralised manager."""
+        from app.core.redis import redis_manager
+        return redis_manager.redis
 
 
 rate_limit_redis = RateLimitRedis()
+
+
+# ==================== In-Memory Fallback ====================
+
+
+class _InMemoryRateLimiter:
+    """
+    Simple in-memory rate limiter used when Redis is unavailable.
+
+    Uses a sliding window counter per identifier (IP/API key).
+    Only tracks per-minute limits to keep memory bounded.
+    """
+
+    def __init__(self) -> None:
+        self._windows: dict[str, collections.deque] = {}
+        self._lock = threading.Lock()
+        # Clean up stale entries every 60s worth of calls
+        self._cleanup_counter = 0
+
+    def is_rate_limited(self, identifier: str, per_minute: int) -> tuple[bool, dict]:
+        """
+        Check if the identifier has exceeded per-minute limit.
+
+        Returns:
+            (is_limited, info_dict)
+        """
+        now = time.time()
+        cutoff = now - 60.0
+
+        with self._lock:
+            # Periodic cleanup of stale identifiers
+            self._cleanup_counter += 1
+            if self._cleanup_counter >= 500:
+                self._cleanup(cutoff)
+                self._cleanup_counter = 0
+
+            if identifier not in self._windows:
+                self._windows[identifier] = collections.deque()
+
+            window = self._windows[identifier]
+
+            # Remove expired entries
+            while window and window[0] < cutoff:
+                window.popleft()
+
+            count = len(window)
+
+            if count >= per_minute:
+                retry_after = int(window[0] + 60 - now) if window else 1
+                return True, {
+                    "limited": True,
+                    "retry_after": max(1, retry_after),
+                    "limit": per_minute,
+                    "remaining": 0,
+                    "reset": int(now + 60),
+                    "window": "minute",
+                }
+
+            # Record this request
+            window.append(now)
+
+            return False, {
+                "limited": False,
+                "retry_after": 0,
+                "limit": per_minute,
+                "remaining": max(0, per_minute - count - 1),
+                "reset": int(now + 60),
+                "window": "minute",
+            }
+
+    def _cleanup(self, cutoff: float) -> None:
+        """Remove identifiers with no recent requests."""
+        stale = [
+            k for k, v in self._windows.items()
+            if not v or v[-1] < cutoff
+        ]
+        for k in stale:
+            del self._windows[k]
+
+
+_fallback_limiter = _InMemoryRateLimiter()
 
 
 # ==================== Rate Limiting Logic ====================
@@ -69,11 +173,30 @@ class RateLimiter:
         self._redis = redis_client
         self.prefix = prefix
 
-    @property
-    def redis(self) -> aioredis.Redis:
+    def _get_redis(self) -> Optional[aioredis.Redis]:
+        """
+        Get Redis client, returning None if unavailable.
+
+        This enables graceful degradation to the in-memory fallback.
+        """
         if self._redis:
             return self._redis
-        return rate_limit_redis.redis
+        try:
+            from app.core.redis import redis_manager
+
+            if redis_manager.is_available:
+                return redis_manager.redis
+        except Exception:
+            pass
+        return None
+
+    @property
+    def redis(self) -> aioredis.Redis:
+        """Get Redis client (raises if unavailable)."""
+        r = self._get_redis()
+        if r is None:
+            raise RuntimeError("Redis not available for rate limiting")
+        return r
 
     def _get_key(self, identifier: str, window: str) -> str:
         """
@@ -94,6 +217,8 @@ class RateLimiter:
         """
         Check if request should be rate limited.
 
+        Falls back to in-memory limiting when Redis is unreachable.
+
         Args:
             identifier: Unique identifier
             limits: Rate limits dict {per_minute, per_hour, per_day}
@@ -101,9 +226,15 @@ class RateLimiter:
 
         Returns:
             tuple: (is_limited, limit_info)
-                - is_limited: True if should be rate limited
-                - limit_info: Dict with limit details
         """
+        redis_client = self._get_redis()
+
+        # ── Fallback: in-memory rate limiting ──
+        if redis_client is None:
+            per_min = limits.get("per_minute", 60)
+            return _fallback_limiter.is_rate_limited(identifier, per_min)
+
+        # ── Primary: Redis-based sliding window ──
         current_time = time.time()
 
         # Check each window
@@ -122,67 +253,70 @@ class RateLimiter:
             "window": "",
         }
 
-        for window_name, (window_seconds, limit) in windows.items():
-            if limit == 0:  # Skip if limit not set
-                continue
+        try:
+            for window_name, (window_seconds, limit) in windows.items():
+                if limit == 0:  # Skip if limit not set
+                    continue
 
-            key = self._get_key(identifier, window_name)
+                key = self._get_key(identifier, window_name)
 
-            # Use sorted set to track requests in time window
-            # Score is timestamp, member is unique request ID
+                # Remove old requests outside window
+                cutoff_time = current_time - window_seconds
+                await redis_client.zremrangebyscore(key, "-inf", cutoff_time)
 
-            # Remove old requests outside window
-            cutoff_time = current_time - window_seconds
-            await self.redis.zremrangebyscore(key, "-inf", cutoff_time)
+                # Count requests in current window
+                count = await redis_client.zcard(key)
 
-            # Count requests in current window
-            count = await self.redis.zcard(key)
+                # Check if limit exceeded (with burst allowance)
+                effective_limit = limit + burst_allowance
 
-            # Check if limit exceeded (with burst allowance)
-            effective_limit = limit + burst_allowance
+                if count >= effective_limit:
+                    # Rate limited!
+                    oldest = await redis_client.zrange(key, 0, 0, withscores=True)
+                    if oldest:
+                        oldest_time = oldest[0][1]
+                        retry_after = int(oldest_time + window_seconds - current_time)
 
-            if count >= effective_limit:
-                # Rate limited!
-                # Get oldest request to calculate retry_after
-                oldest = await self.redis.zrange(key, 0, 0, withscores=True)
-                if oldest:
-                    oldest_time = oldest[0][1]
-                    retry_after = int(oldest_time + window_seconds - current_time)
+                        limit_info.update(
+                            {
+                                "limited": True,
+                                "retry_after": max(1, retry_after),
+                                "limit": limit,
+                                "remaining": 0,
+                                "reset": int(oldest_time + window_seconds),
+                                "window": window_name,
+                            }
+                        )
 
+                        return True, limit_info
+
+                # Update limit info for headers
+                if window_name == "minute":  # Use minute window for headers
                     limit_info.update(
                         {
-                            "limited": True,
-                            "retry_after": max(1, retry_after),
                             "limit": limit,
-                            "remaining": 0,
-                            "reset": int(oldest_time + window_seconds),
-                            "window": window_name,
+                            "remaining": max(0, limit - count),
+                            "reset": int(current_time + window_seconds),
                         }
                     )
 
-                    return True, limit_info
+            # Not rate limited - record this request
+            request_id = f"{current_time}:{id(identifier)}"
 
-            # Update limit info for headers
-            if window_name == "minute":  # Use minute window for headers
-                limit_info.update(
-                    {
-                        "limit": limit,
-                        "remaining": max(0, limit - count),
-                        "reset": int(current_time + window_seconds),
-                    }
-                )
+            # Add to all relevant windows
+            for window_name, (window_seconds, limit) in windows.items():
+                if limit > 0:
+                    key = self._get_key(identifier, window_name)
+                    await redis_client.zadd(key, {request_id: current_time})
+                    await redis_client.expire(key, window_seconds + 60)  # Extra buffer
 
-        # Not rate limited - record this request
-        request_id = f"{current_time}:{id(identifier)}"
+            return False, limit_info
 
-        # Add to all relevant windows
-        for window_name, (window_seconds, limit) in windows.items():
-            if limit > 0:
-                key = self._get_key(identifier, window_name)
-                await self.redis.zadd(key, {request_id: current_time})
-                await self.redis.expire(key, window_seconds + 60)  # Extra buffer
-
-        return False, limit_info
+        except Exception as exc:
+            # Redis error — fall back to in-memory
+            logger.warning("Redis rate-limit error, falling back to in-memory: %s", exc)
+            per_min = limits.get("per_minute", 60)
+            return _fallback_limiter.is_rate_limited(identifier, per_min)
 
     async def get_usage(self, identifier: str) -> dict:
         """
@@ -194,21 +328,23 @@ class RateLimiter:
         Returns:
             dict: Usage statistics
         """
-        current_time = time.time()
+        redis_client = self._get_redis()
+        if redis_client is None:
+            return {"minute": 0, "hour": 0, "day": 0, "source": "unavailable"}
 
+        current_time = time.time()
         usage = {}
         windows = {"minute": 60, "hour": 3600, "day": 86400}
 
-        for window_name, window_seconds in windows.items():
-            key = self._get_key(identifier, window_name)
-
-            # Remove old requests
-            cutoff_time = current_time - window_seconds
-            await self.redis.zremrangebyscore(key, "-inf", cutoff_time)
-
-            # Count requests
-            count = await self.redis.zcard(key)
-            usage[window_name] = count
+        try:
+            for window_name, window_seconds in windows.items():
+                key = self._get_key(identifier, window_name)
+                cutoff_time = current_time - window_seconds
+                await redis_client.zremrangebyscore(key, "-inf", cutoff_time)
+                count = await redis_client.zcard(key)
+                usage[window_name] = count
+        except Exception:
+            return {"minute": 0, "hour": 0, "day": 0, "source": "error"}
 
         return usage
 
@@ -222,11 +358,17 @@ class RateLimiter:
         Returns:
             bool: True if reset successful
         """
-        windows = ["minute", "hour", "day"]
+        redis_client = self._get_redis()
+        if redis_client is None:
+            return False
 
-        for window in windows:
-            key = self._get_key(identifier, window)
-            await self.redis.delete(key)
+        windows = ["minute", "hour", "day"]
+        try:
+            for window in windows:
+                key = self._get_key(identifier, window)
+                await redis_client.delete(key)
+        except Exception:
+            return False
 
         return True
 
@@ -387,37 +529,3 @@ def rate_limit(
         return func
 
     return decorator
-
-
-# ==================== Usage Example ====================
-"""
-# In main.py:
-
-from fastapi import FastAPI
-from app.core.rate_limit import RateLimitMiddleware, rate_limit_redis
-
-app = FastAPI()
-
-@app.on_event("startup")
-async def startup():
-    await rate_limit_redis.connect()
-
-    # Add middleware
-    app.add_middleware(
-        RateLimitMiddleware,
-        redis_client=rate_limit_redis.redis,
-        enabled=True
-    )
-
-@app.on_event("shutdown")
-async def shutdown():
-    await rate_limit_redis.disconnect()
-
-
-# In routes:
-
-@router.post("/scan")
-@rate_limit(per_minute=5, per_hour=20)  # Custom limits for this endpoint
-async def scan_contract():
-    ...
-"""
