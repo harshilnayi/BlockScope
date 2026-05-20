@@ -43,13 +43,12 @@
 
 ### 2. Configure Environment
 
-    # Copy the example env file
-    cp backend/.env.example backend/.env.development
+    # Copy the root environment template
+    cp .env.example .env
 
-    # Edit with your local settings (the defaults work out of the box for Docker)
-    # Key values to verify:
-    #   DATABASE_URL=postgresql://blockscope_dev:dev_password_123@db:5432/blockscope_dev
-    #   REDIS_URL=redis://redis:6379/0
+    # Edit with your local settings
+    # ⚠️  At minimum, set POSTGRES_PASSWORD to a non-default value
+    # The defaults work out of the box for Docker development
 
 ### 3. Start All Services
 
@@ -124,15 +123,11 @@
 | `ENABLE_API_DOCS`    | Set to `False` (or keep for internal use)                                |
 | `RATE_LIMIT_ENABLED` | Set to `True`                                                            |
 
-### 3. Deploy
-
-    # Using the deployment script
-    ./scripts/deploy.sh
-
-    # Or manually:
-    cd docker
-    docker compose -f docker-compose.prod.yml build
+    # Using the production compose file:
     docker compose -f docker-compose.prod.yml up -d
+
+    # Or using the deployment script:
+    ./scripts/deploy.sh
 
 ### 4. Verify Deployment
 

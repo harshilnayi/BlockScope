@@ -1,6 +1,13 @@
-import pytest
 from pathlib import Path
+
+import pytest
 from analysis.slither_wrapper import SlitherWrapper
+
+
+@pytest.fixture(autouse=True)
+def _fresh_slither_cache():
+    """Clear the Slither parse cache before each test to prevent cross-test pollution."""
+    SlitherWrapper.clear_parse_cache()
 
 
 def test_valid_contract_analysis(tmp_path, monkeypatch):
@@ -15,7 +22,6 @@ def test_valid_contract_analysis(tmp_path, monkeypatch):
     wrapper = SlitherWrapper()
     wrapper._available = True
     monkeypatch.setattr(wrapper, "Slither", DummySlither)
-    SlitherWrapper.clear_parse_cache()  # avoid cache hits from prior tests
 
     result = wrapper.parse_contract(contract)
     assert result is not None
@@ -43,7 +49,6 @@ def test_timeout_scenarios(monkeypatch, tmp_path):
     wrapper = SlitherWrapper()
     wrapper._available = True
     monkeypatch.setattr(wrapper, "Slither", DummySlither)
-    SlitherWrapper.clear_parse_cache()  # avoid cache hits from prior tests
 
     with pytest.raises(TimeoutError):
         wrapper.parse_contract(contract)
@@ -61,7 +66,6 @@ def test_json_parsing(monkeypatch, tmp_path):
     wrapper = SlitherWrapper()
     wrapper._available = True
     monkeypatch.setattr(wrapper, "Slither", DummySlither)
-    SlitherWrapper.clear_parse_cache()  # avoid cache hits from prior tests
 
     result = wrapper.parse_contract(contract)
     assert isinstance(result.detectors_results, list)
@@ -79,14 +83,9 @@ def test_vulnerability_mapping(monkeypatch, tmp_path):
     wrapper = SlitherWrapper()
     wrapper._available = True
     monkeypatch.setattr(wrapper, "Slither", DummySlither)
-    SlitherWrapper.clear_parse_cache()  # avoid cache hits from prior tests
 
     result = wrapper.parse_contract(contract)
     assert result.detectors_results[0]["impact"] == "high"
-
-
-def test_score_calculation_placeholder():
-    assert 100 - 20 - 10 == 70
 
 
 def test_error_handling(monkeypatch, tmp_path):
@@ -100,7 +99,6 @@ def test_error_handling(monkeypatch, tmp_path):
     wrapper = SlitherWrapper()
     wrapper._available = True
     monkeypatch.setattr(wrapper, "Slither", DummySlither)
-    SlitherWrapper.clear_parse_cache()  # avoid cache hits from prior tests
 
     with pytest.raises(Exception):
         wrapper.parse_contract(contract)
