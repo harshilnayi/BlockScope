@@ -109,6 +109,12 @@ def app():
 
 
 @pytest.fixture
+def app_instance(app):
+    """Alias for ``app`` — backward compat with test_edge_cases / test_security."""
+    return app
+
+
+@pytest.fixture
 def client(app, db_session):
     """Provide a FastAPI TestClient with database session override."""
     from fastapi.testclient import TestClient
