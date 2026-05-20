@@ -1,6 +1,13 @@
-import pytest
 from pathlib import Path
+
+import pytest
 from analysis.slither_wrapper import SlitherWrapper
+
+
+@pytest.fixture(autouse=True)
+def _fresh_slither_cache():
+    """Clear the Slither parse cache before each test to prevent cross-test pollution."""
+    SlitherWrapper.clear_parse_cache()
 
 
 def test_valid_contract_analysis(tmp_path, monkeypatch):
@@ -13,7 +20,7 @@ def test_valid_contract_analysis(tmp_path, monkeypatch):
             self.detectors_results = []
 
     wrapper = SlitherWrapper()
-    monkeypatch.setattr(wrapper, "available", True)
+    wrapper._available = True
     monkeypatch.setattr(wrapper, "Slither", DummySlither)
 
     result = wrapper.parse_contract(contract)
@@ -40,7 +47,7 @@ def test_timeout_scenarios(monkeypatch, tmp_path):
             raise TimeoutError("timeout")
 
     wrapper = SlitherWrapper()
-    monkeypatch.setattr(wrapper, "available", True)
+    wrapper._available = True
     monkeypatch.setattr(wrapper, "Slither", DummySlither)
 
     with pytest.raises(TimeoutError):
@@ -57,7 +64,7 @@ def test_json_parsing(monkeypatch, tmp_path):
             self.contracts = []
 
     wrapper = SlitherWrapper()
-    monkeypatch.setattr(wrapper, "available", True)
+    wrapper._available = True
     monkeypatch.setattr(wrapper, "Slither", DummySlither)
 
     result = wrapper.parse_contract(contract)
@@ -74,15 +81,11 @@ def test_vulnerability_mapping(monkeypatch, tmp_path):
             self.contracts = []
 
     wrapper = SlitherWrapper()
-    monkeypatch.setattr(wrapper, "available", True)
+    wrapper._available = True
     monkeypatch.setattr(wrapper, "Slither", DummySlither)
 
     result = wrapper.parse_contract(contract)
     assert result.detectors_results[0]["impact"] == "high"
-
-
-def test_score_calculation_placeholder():
-    assert 100 - 20 - 10 == 70
 
 
 def test_error_handling(monkeypatch, tmp_path):
@@ -94,7 +97,7 @@ def test_error_handling(monkeypatch, tmp_path):
             raise Exception("boom")
 
     wrapper = SlitherWrapper()
-    monkeypatch.setattr(wrapper, "available", True)
+    wrapper._available = True
     monkeypatch.setattr(wrapper, "Slither", DummySlither)
 
     with pytest.raises(Exception):

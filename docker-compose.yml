@@ -1,4 +1,6 @@
 
+# ─── DEVELOPMENT docker-compose ───
+# For production, use docker-compose.prod.yml with proper secrets management.
 services:
   # ─── Database ───
   db:
@@ -6,15 +8,16 @@ services:
     container_name: blockscope_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: blockscope_dev
-      POSTGRES_PASSWORD: dev_password_123
-      POSTGRES_DB: blockscope_dev
+      POSTGRES_USER: ${POSTGRES_USER:-blockscope_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-blockscope_dev}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U blockscope_dev"]
+      # $$ escapes Compose interpolation so the container's own env-var is used
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,7 +28,7 @@ services:
     container_name: blockscope_redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -45,7 +48,7 @@ services:
     env_file:
       - backend/.env.development
     environment:
-      DATABASE_URL: postgresql://blockscope_dev:dev_password_123@db:5432/blockscope_dev
+      DATABASE_URL: postgresql://${POSTGRES_USER:-blockscope_dev}:${POSTGRES_PASSWORD:-dev_password_change_me}@db:5432/${POSTGRES_DB:-blockscope_dev}
       REDIS_URL: redis://redis:6379/0
       RATE_LIMIT_ENABLED: "True"
       HOST: 0.0.0.0
