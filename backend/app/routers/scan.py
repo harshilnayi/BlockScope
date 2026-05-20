@@ -283,36 +283,66 @@ async def _run_analysis_and_persist(
     # contracts with identical source are each cached independently.
     cache_key = _analysis_cache.make_key(source_code, contract_name)
 
-    # Try the analysis cache first.
+    # Try the L1 (in-memory) analysis cache first.
     # Even on a hit we still persist a fresh DB row so every caller gets
     # their own scan_id and their own history record.
     cached_result: Optional[ScanResult] = _analysis_cache.get(cache_key) if cache_enabled else None
     if cached_result is not None:
         CACHE_HITS.labels(cache_type="scan").inc()
-        _scan_logger.info("Analysis cache hit — skipping Slither, persisting new DB row", extra=ctx)
+        _scan_logger.info("L1 cache hit — skipping Slither, persisting new DB row", extra=ctx)
         scan_result = cached_result
     else:
-        # Cache miss: count it, then run the full analysis pipeline.
-        CACHE_MISSES.labels(cache_type="scan").inc()
-        # -- Run analysis in a dedicated executor (non-blocking) ---------------
-        # Slither invokes the Solidity compiler in a subprocess; running it
-        # directly here would block FastAPI's event loop and serialise all
-        # concurrent requests.  We offload it to a bounded thread pool so the
-        # loop stays free to accept and dispatch other requests.
-        with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
-            analysis_request = AnalysisScanRequest(
-                source_code=source_code,
-                contract_name=contract_name,
-                file_path=file_path,
-            )
-            loop = asyncio.get_running_loop()
-            scan_result = await loop.run_in_executor(
-                _SCAN_EXECUTOR,
-                orchestrator.analyze,
-                analysis_request,
-            )
-        # Populate the analysis cache for future callers.
-        _analysis_cache.set(cache_key, scan_result)
+        # L1 miss — try L2 (Redis) cache
+        l2_hit = False
+        if cache_enabled:
+            try:
+                from app.core.cache import redis_scan_cache
+
+                l2_data = await redis_scan_cache.get(cache_key)
+                if l2_data is not None:
+                    try:
+                        scan_result = ScanResult(**l2_data)
+                    except Exception as reconstruct_exc:
+                        _scan_logger.warning(
+                            "L2 cache hit but ScanResult reconstruction failed "
+                            "(schema drift?): %s — falling through to full analysis",
+                            reconstruct_exc,
+                            extra=ctx,
+                        )
+                    else:
+                        CACHE_HITS.labels(cache_type="redis_scan").inc()
+                        _scan_logger.info("L2 Redis cache hit — rebuilding ScanResult", extra=ctx)
+                        # Promote to L1 for faster subsequent hits
+                        _analysis_cache.set(cache_key, scan_result)
+                        l2_hit = True
+            except Exception as exc:
+                _scan_logger.debug("L2 Redis cache lookup failed: %s", exc)
+
+        if not l2_hit:
+            # Both caches missed: run the full analysis pipeline.
+            CACHE_MISSES.labels(cache_type="scan").inc()
+            with PerformanceTimer("analysis_pipeline", _scan_logger, extra=ctx):
+                analysis_request = AnalysisScanRequest(
+                    source_code=source_code,
+                    contract_name=contract_name,
+                    file_path=file_path,
+                )
+                loop = asyncio.get_running_loop()
+                scan_result = await loop.run_in_executor(
+                    _SCAN_EXECUTOR,
+                    orchestrator.analyze,
+                    analysis_request,
+                )
+            # Populate L1 (in-memory) cache
+            _analysis_cache.set(cache_key, scan_result)
+
+            # Populate L2 (Redis) cache — fire-and-forget
+            if cache_enabled:
+                try:
+                    from app.core.cache import redis_scan_cache
+                    await redis_scan_cache.set(cache_key, scan_result)
+                except Exception as exc:
+                    _scan_logger.debug("L2 Redis cache SET failed: %s", exc)
 
     _scan_logger.info(
         "Analysis complete",
