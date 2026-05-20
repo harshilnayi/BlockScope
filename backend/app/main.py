@@ -215,15 +215,24 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
-    # Redis (rate limiting)
-    if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:  # pragma: no cover
+    # Redis (caching + rate limiting)
+    if SECURITY_ENABLED:  # pragma: no cover
         try:
-            from app.core.rate_limit import rate_limit_redis
+            from app.core.redis import redis_manager
 
-            await rate_limit_redis.connect()
-            logger.info("Redis connected for rate limiting")
+            await redis_manager.connect(
+                url=settings.redis_url_str,
+                password=settings.REDIS_PASSWORD,
+                max_connections=settings.REDIS_MAX_CONNECTIONS,
+                socket_timeout=settings.REDIS_SOCKET_TIMEOUT,
+                socket_connect_timeout=settings.REDIS_SOCKET_CONNECT_TIMEOUT,
+            )
+            if redis_manager.is_available:
+                logger.info("Redis connected (caching + rate limiting)")
+            else:
+                logger.warning("Redis unavailable — caching and rate limiting degraded")
         except Exception as exc:
-            logger.warning("Redis connection failed - rate limiting disabled: %s", exc)
+            logger.warning("Redis setup failed — degrading gracefully: %s", exc)
 
     # Database connectivity
     try:
@@ -258,11 +267,10 @@ async def lifespan(app: FastAPI):
     except Exception as exc:  # pragma: no cover
         logger.debug("Thread pool shutdown skipped: %s", exc)
 
-    if SECURITY_ENABLED and settings.RATE_LIMIT_ENABLED:  # pragma: no cover
+    if SECURITY_ENABLED:  # pragma: no cover
         try:
-            from app.core.rate_limit import rate_limit_redis
-            await rate_limit_redis.disconnect()
-            logger.info("Redis disconnected")
+            from app.core.redis import redis_manager
+            await redis_manager.disconnect()
         except Exception:
             pass
 
@@ -534,6 +542,20 @@ async def performance_metrics() -> Dict[str, Any]:
     except Exception:
         perf_metrics["db_pool"] = "unavailable"
 
+    # Redis connection
+    try:
+        from app.core.redis import redis_manager
+        perf_metrics["redis"] = redis_manager.stats
+    except Exception:
+        perf_metrics["redis"] = "unavailable"
+
+    # Redis scan cache (L2)
+    try:
+        from app.core.cache import redis_scan_cache
+        perf_metrics["redis_scan_cache"] = redis_scan_cache.stats
+    except Exception:
+        perf_metrics["redis_scan_cache"] = "unavailable"
+
     return perf_metrics
 
 
@@ -569,17 +591,28 @@ async def invalidate_cache(
 
         cleared_analysis = analysis_cache.clear()
         cleared_slither = SlitherWrapper.clear_parse_cache()
+
+        # Also clear Redis L2 cache
+        cleared_redis = 0
+        try:
+            from app.core.cache import redis_scan_cache
+            cleared_redis = await redis_scan_cache.clear()
+        except Exception:
+            pass
+
         logger.info(
             "Cache invalidated via API",
             extra={
                 "analysis_entries": cleared_analysis,
                 "slither_entries": cleared_slither,
+                "redis_entries": cleared_redis,
                 "request_id": getattr(request.state, "request_id", ""),
             },
         )
         return {
             "analysis_cache_cleared": cleared_analysis,
             "slither_parse_cache_cleared": cleared_slither,
+            "redis_cache_cleared": cleared_redis,
             "message": "All caches cleared successfully",
         }
     except Exception as exc:
